@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="nurGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#064e3b" />
+      <stop offset="100%" stop-color="#022c22" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fcd34d" />
+      <stop offset="50%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="128" fill="url(#nurGrad)" />
+  <circle cx="256" cy="256" r="210" fill="none" stroke="url(#goldGrad)" stroke-width="4" stroke-opacity="0.3" stroke-dasharray="8 8" />
+  
+  <!-- Stylized Crescent Moon & Star -->
+  <path d="M 285 140 C 205 145 150 210 155 295 C 160 375 225 425 305 415 C 240 405 200 355 195 295 C 190 230 235 165 285 140 Z" fill="url(#goldGrad)" />
+  <!-- 8-pointed Islamic Star -->
+  <polygon points="340,210 353,235 380,240 358,258 365,285 340,270 315,285 322,258 300,240 327,235" fill="url(#goldGrad)" />
+</svg>

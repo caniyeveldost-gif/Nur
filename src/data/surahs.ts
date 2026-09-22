@@ -1,0 +1,238 @@
+import { Surah, Ayah } from '../types';
+
+export const ALL_SURAHS: Surah[] = [
+  { number: 1, name: "الفاتحة", transliteration: "Əl-Fatihə", translation: "Kitabı Açan", totalAyahs: 7, revelationType: "Məkkə" },
+  { number: 2, name: "البقرة", transliteration: "Əl-Bəqərə", translation: "İnək", totalAyahs: 286, revelationType: "Mədinə" },
+  { number: 3, name: "آل عمران", transliteration: "Ali-İmran", translation: "İmran Ailəsi", totalAyahs: 200, revelationType: "Mədinə" },
+  { number: 4, name: "النساء", transliteration: "Ən-Nisa", translation: "Qadınlar", totalAyahs: 176, revelationType: "Mədinə" },
+  { number: 5, name: "المائدة", transliteration: "Əl-Maidə", translation: "Süfrə", totalAyahs: 120, revelationType: "Mədinə" },
+  { number: 6, name: "الأنعام", transliteration: "Əl-Ənam", translation: "Dördayaqlılar", totalAyahs: 165, revelationType: "Məkkə" },
+  { number: 7, name: "الأعراف", transliteration: "Əl-Əraf", translation: "Sədd", totalAyahs: 206, revelationType: "Məkkə" },
+  { number: 8, name: "الأنفال", transliteration: "Əl-Ənfal", translation: "Qənimət", totalAyahs: 75, revelationType: "Mədinə" },
+  { number: 9, name: "التوبة", transliteration: "Ət-Tövbə", translation: "Tövbə", totalAyahs: 129, revelationType: "Mədinə" },
+  { number: 10, name: "يونس", transliteration: "Yunus", translation: "Yunus Peyğəmbər", totalAyahs: 109, revelationType: "Məkkə" },
+  { number: 11, name: "هود", transliteration: "Hud", translation: "Hud Peyğəmbər", totalAyahs: 123, revelationType: "Məkkə" },
+  { number: 12, name: "يوسف", transliteration: "Yusuf", translation: "Yusif Peyğəmbər", totalAyahs: 111, revelationType: "Məkkə" },
+  { number: 13, name: "الرعد", transliteration: "Ər-Rəd", translation: "Göy Gurultusu", totalAyahs: 43, revelationType: "Mədinə" },
+  { number: 14, name: "إبراهيم", transliteration: "İbrahim", translation: "İbrahim Peyğəmbər", totalAyahs: 52, revelationType: "Məkkə" },
+  { number: 15, name: "الحجر", transliteration: "Əl-Hicr", translation: "Qayalıq", totalAyahs: 99, revelationType: "Məkkə" },
+  { number: 16, name: "النحل", transliteration: "Ən-Nəhl", translation: "Bal Arısı", totalAyahs: 128, revelationType: "Məkkə" },
+  { number: 17, name: "الإسراء", transliteration: "Əl-İsra", translation: "Gecə Səfəri", totalAyahs: 111, revelationType: "Məkkə" },
+  { number: 18, name: "الكهف", transliteration: "Əl-Kəhf", translation: "Mağara", totalAyahs: 110, revelationType: "Məkkə" },
+  { number: 19, name: "مريم", transliteration: "Məryəm", translation: "Məryəm", totalAyahs: 98, revelationType: "Məkkə" },
+  { number: 20, name: "طه", transliteration: "Taha", translation: "Taha", totalAyahs: 135, revelationType: "Məkkə" },
+  { number: 21, name: "الأنبياء", transliteration: "Əl-Ənbiya", translation: "Peyğəmbərlər", totalAyahs: 112, revelationType: "Məkkə" },
+  { number: 22, name: "الحج", transliteration: "Əl-Həcc", translation: "Həcc", totalAyahs: 78, revelationType: "Mədinə" },
+  { number: 23, name: "المؤمنون", transliteration: "Əl-Muminun", translation: "Möminlər", totalAyahs: 118, revelationType: "Məkkə" },
+  { number: 24, name: "النور", transliteration: "Ən-Nur", translation: "Nur", totalAyahs: 64, revelationType: "Mədinə" },
+  { number: 25, name: "الفرقان", transliteration: "Əl-Furqan", translation: "Fərqləndirən", totalAyahs: 77, revelationType: "Məkkə" },
+  { number: 26, name: "الشعراء", transliteration: "Əş-Şuəra", translation: "Şairlər", totalAyahs: 227, revelationType: "Məkkə" },
+  { number: 27, name: "النمل", transliteration: "Ən-Nəml", translation: "Qarışqalar", totalAyahs: 93, revelationType: "Məkkə" },
+  { number: 28, name: "القصص", transliteration: "Əl-Qasas", translation: "Hekayət", totalAyahs: 88, revelationType: "Məkkə" },
+  { number: 29, name: "العنكبوت", transliteration: "Əl-Ənkəbut", translation: "Hörümçək", totalAyahs: 69, revelationType: "Məkkə" },
+  { number: 30, name: "الروم", transliteration: "Ər-Rum", translation: "Rumlular", totalAyahs: 60, revelationType: "Məkkə" },
+  { number: 31, name: "لقمان", transliteration: "Loğman", translation: "Loğman", totalAyahs: 34, revelationType: "Məkkə" },
+  { number: 32, name: "السجدة", transliteration: "Əs-Səcdə", translation: "Səcdə", totalAyahs: 30, revelationType: "Məkkə" },
+  { number: 33, name: "الأحزاب", transliteration: "Əl-Əhzab", translation: "Dəstələr", totalAyahs: 73, revelationType: "Mədinə" },
+  { number: 34, name: "سبإ", transliteration: "Səba", translation: "Səba", totalAyahs: 54, revelationType: "Məkkə" },
+  { number: 35, name: "فاطر", transliteration: "Fatir", translation: "Yaradan", totalAyahs: 45, revelationType: "Məkkə" },
+  { number: 36, name: "يس", transliteration: "Yasin", translation: "Yasin", totalAyahs: 83, revelationType: "Məkkə" },
+  { number: 37, name: "الصافات", transliteration: "Əs-Saffat", translation: "Səf-səf Düzülənlər", totalAyahs: 182, revelationType: "Məkkə" },
+  { number: 38, name: "ص", transliteration: "Sad", translation: "Sad", totalAyahs: 88, revelationType: "Məkkə" },
+  { number: 39, name: "الزمر", transliteration: "Əz-Zümər", translation: "Zümrələr", totalAyahs: 75, revelationType: "Məkkə" },
+  { number: 40, name: "غافر", transliteration: "Ğafir", translation: "Bağışlayan", totalAyahs: 85, revelationType: "Məkkə" },
+  { number: 41, name: "فصلت", transliteration: "Fussilət", translation: "Müfəssəl İzah Edilən", totalAyahs: 54, revelationType: "Məkkə" },
+  { number: 42, name: "الشورى", transliteration: "Əş-Şura", translation: "Şura", totalAyahs: 53, revelationType: "Məkkə" },
+  { number: 43, name: "الزخرف", transliteration: "Əz-Zuxruf", translation: "Qızıl Bəzəklər", totalAyahs: 89, revelationType: "Məkkə" },
+  { number: 44, name: "الدخان", transliteration: "Əd-Duxan", translation: "Tüstü", totalAyahs: 59, revelationType: "Məkkə" },
+  { number: 45, name: "الجاثية", transliteration: "Əl-Casiyə", translation: "Diz Çökmüş Camaat", totalAyahs: 37, revelationType: "Məkkə" },
+  { number: 46, name: "الأحقاف", transliteration: "Əl-Əhqaf", translation: "Qumluqlar", totalAyahs: 35, revelationType: "Məkkə" },
+  { number: 47, name: "محمد", transliteration: "Məhəmməd", translation: "Məhəmməd Peyğəmbər", totalAyahs: 38, revelationType: "Mədinə" },
+  { number: 48, name: "الفتح", transliteration: "Əl-Fəth", translation: "Fəth (Qələbə)", totalAyahs: 29, revelationType: "Mədinə" },
+  { number: 49, name: "الحجرات", transliteration: "Əl-Hucurat", translation: "Otaqlar", totalAyahs: 18, revelationType: "Mədinə" },
+  { number: 50, name: "ق", transliteration: "Qaf", translation: "Qaf", totalAyahs: 45, revelationType: "Məkkə" },
+  { number: 51, name: "الذاريات", transliteration: "Əz-Zariyat", translation: "Sovurub Dağıdanlar", totalAyahs: 60, revelationType: "Məkkə" },
+  { number: 52, name: "الطور", transliteration: "Ət-Tur", translation: "Tur Dağı", totalAyahs: 49, revelationType: "Məkkə" },
+  { number: 53, name: "النجم", transliteration: "Ən-Nəcm", translation: "Ulduz", totalAyahs: 62, revelationType: "Məkkə" },
+  { number: 54, name: "القمر", transliteration: "Əl-Qəmər", translation: "Ay", totalAyahs: 55, revelationType: "Məkkə" },
+  { number: 55, name: "الرحمن", transliteration: "Ər-Rəhman", translation: "Mərhəmətli", totalAyahs: 78, revelationType: "Mədinə" },
+  { number: 56, name: "الواقعة", transliteration: "Əl-Vaqiə", translation: "Vaqiə (Böyük Hadisə)", totalAyahs: 96, revelationType: "Məkkə" },
+  { number: 57, name: "الحديد", transliteration: "Əl-Hədid", translation: "Dəmir", totalAyahs: 29, revelationType: "Mədinə" },
+  { number: 58, name: "المجادلة", transliteration: "Əl-Mücadilə", translation: "Mübahisə Edən Qadın", totalAyahs: 22, revelationType: "Mədinə" },
+  { number: 59, name: "الحشر", transliteration: "Əl-Həşr", translation: "Toplanma", totalAyahs: 24, revelationType: "Mədinə" },
+  { number: 60, name: "الممتحنة", transliteration: "Əl-Mumtəhinə", translation: "İmtahana Çəkilən Qadın", totalAyahs: 13, revelationType: "Mədinə" },
+  { number: 61, name: "الصف", transliteration: "Əs-Səff", translation: "Səf", totalAyahs: 14, revelationType: "Mədinə" },
+  { number: 62, name: "الجمعة", transliteration: "Əl-Cümə", translation: "Cümə", totalAyahs: 11, revelationType: "Mədinə" },
+  { number: 63, name: "المنافقون", transliteration: "Əl-Münafiqun", translation: "Münafiqlər", totalAyahs: 11, revelationType: "Mədinə" },
+  { number: 64, name: "التغابن", transliteration: "Ət-Təğabun", translation: "Qarşılıqlı Aldanma", totalAyahs: 18, revelationType: "Mədinə" },
+  { number: 65, name: "الطلاق", transliteration: "Ət-Talaq", translation: "Boşanma", totalAyahs: 12, revelationType: "Mədinə" },
+  { number: 66, name: "التحريم", transliteration: "Ət-Təhrim", translation: "Qadağan Etmə", totalAyahs: 12, revelationType: "Mədinə" },
+  { number: 67, name: "الملك", transliteration: "Əl-Mülk", translation: "Mülk (Hökmdarlıq)", totalAyahs: 30, revelationType: "Məkkə" },
+  { number: 68, name: "القلم", transliteration: "Əl-Qələm", translation: "Qələm", totalAyahs: 52, revelationType: "Məkkə" },
+  { number: 69, name: "الحاقة", transliteration: "Əl-Haqqə", translation: "Labüd Hadisə", totalAyahs: 52, revelationType: "Məkkə" },
+  { number: 70, name: "المعارج", transliteration: "Əl-Məaric", translation: "Dərəcələr", totalAyahs: 44, revelationType: "Məkkə" },
+  { number: 71, name: "نوح", transliteration: "Nuh", translation: "Nuh Peyğəmbər", totalAyahs: 28, revelationType: "Məkkə" },
+  { number: 72, name: "الجن", transliteration: "Əl-Cinn", translation: "Cinlər", totalAyahs: 28, revelationType: "Məkkə" },
+  { number: 73, name: "المزمل", transliteration: "Əl-Müzzəmmil", translation: "Bürünüb Yatan", totalAyahs: 20, revelationType: "Məkkə" },
+  { number: 74, name: "المدثر", transliteration: "Əl-Müddəssir", translation: "Libasına Bürünən", totalAyahs: 56, revelationType: "Məkkə" },
+  { number: 75, name: "القيامة", transliteration: "Əl-Qiyamə", translation: "Qiyamət", totalAyahs: 40, revelationType: "Məkkə" },
+  { number: 76, name: "الإنسان", transliteration: "Əl-İnsan", translation: "İnsan", totalAyahs: 31, revelationType: "Mədinə" },
+  { number: 77, name: "المرسلات", transliteration: "Əl-Mursəlat", translation: "Göndərilənlər", totalAyahs: 50, revelationType: "Məkkə" },
+  { number: 78, name: "النبإ", transliteration: "Ən-Nəbə", translation: "Böyük Xəbər", totalAyahs: 40, revelationType: "Məkkə" },
+  { number: 79, name: "النازعات", transliteration: "Ən-Naziat", translation: "Can Alanlar", totalAyahs: 46, revelationType: "Məkkə" },
+  { number: 80, name: "عبس", transliteration: "Əbəsə", translation: "Üzünü Turşutdu", totalAyahs: 42, revelationType: "Məkkə" },
+  { number: 81, name: "التكوير", transliteration: "Ət-Təkvir", translation: "Bürünmə", totalAyahs: 29, revelationType: "Məkkə" },
+  { number: 82, name: "الانفطار", transliteration: "Əl-İnfitar", translation: "Parçalanma", totalAyahs: 19, revelationType: "Məkkə" },
+  { number: 83, name: "المطففين", transliteration: "Əl-Mütəffifin", translation: "Tərəzidə Aldadanlar", totalAyahs: 36, revelationType: "Məkkə" },
+  { number: 84, name: "الانشقاق", transliteration: "Əl-İnşiqaq", translation: "Yarılma", totalAyahs: 25, revelationType: "Məkkə" },
+  { number: 85, name: "البروج", transliteration: "Əl-Buruc", translation: "Bürclər", totalAyahs: 22, revelationType: "Məkkə" },
+  { number: 86, name: "الطارق", transliteration: "Ət-Tariq", translation: "Gecə Gələn", totalAyahs: 17, revelationType: "Məkkə" },
+  { number: 87, name: "الأعلى", transliteration: "Əl-Əla", translation: "Ən Uca", totalAyahs: 19, revelationType: "Məkkə" },
+  { number: 88, name: "الغاشية", transliteration: "Əl-Ğaşiyə", translation: "Bürüyən Bəla", totalAyahs: 26, revelationType: "Məkkə" },
+  { number: 89, name: "الفجر", transliteration: "Əl-Fəcr", translation: "Sübh Çağı", totalAyahs: 30, revelationType: "Məkkə" },
+  { number: 90, name: "البلد", transliteration: "Əl-Bələd", translation: "Şəhər", totalAyahs: 20, revelationType: "Məkkə" },
+  { number: 91, name: "الشمس", transliteration: "Əş-Şəms", translation: "Günəş", totalAyahs: 15, revelationType: "Məkkə" },
+  { number: 92, name: "الليل", transliteration: "Əl-Leyl", translation: "Gecə", totalAyahs: 21, revelationType: "Məkkə" },
+  { number: 93, name: "الضحى", transliteration: "Əd-Duha", translation: "Səhər İşığı", totalAyahs: 11, revelationType: "Məkkə" },
+  { number: 94, name: "الشرح", transliteration: "Əl-İnşirah", translation: "Köks Açılması", totalAyahs: 8, revelationType: "Məkkə" },
+  { number: 95, name: "التين", transliteration: "Ət-Tin", translation: "Əncir", totalAyahs: 8, revelationType: "Məkkə" },
+  { number: 96, name: "العلق", transliteration: "Əl-Ələq", translation: "Laxtalanmış Qan", totalAyahs: 19, revelationType: "Məkkə" },
+  { number: 97, name: "القدر", transliteration: "Əl-Qədr", translation: "Qədr Gecəsi", totalAyahs: 5, revelationType: "Məkkə" },
+  { number: 98, name: "البينة", transliteration: "Əl-Bəyyinə", translation: "Aydın Dəlil", totalAyahs: 8, revelationType: "Mədinə" },
+  { number: 99, name: "الزلزلة", transliteration: "Əz-Zəlzələ", translation: "Zəlzələ", totalAyahs: 8, revelationType: "Mədinə" },
+  { number: 100, name: "العاديات", transliteration: "Əl-Adiyat", translation: "Qaçan Atlar", totalAyahs: 11, revelationType: "Məkkə" },
+  { number: 101, name: "القارعة", transliteration: "Əl-Qariə", translation: "Qapı Döyən", totalAyahs: 11, revelationType: "Məkkə" },
+  { number: 102, name: "التكاثر", transliteration: "Ət-Təkasur", translation: "Çoxluqla Öyünmə", totalAyahs: 8, revelationType: "Məkkə" },
+  { number: 103, name: "العصر", transliteration: "Əl-Əsr", translation: "Əsr (Zaman)", totalAyahs: 3, revelationType: "Məkkə" },
+  { number: 104, name: "الهمزة", transliteration: "Əl-Huməzə", translation: "Qeybətçilər", totalAyahs: 9, revelationType: "Məkkə" },
+  { number: 105, name: "الفيل", transliteration: "Əl-Fil", translation: "Fil", totalAyahs: 5, revelationType: "Məkkə" },
+  { number: 106, name: "قريش", transliteration: "Qureyş", translation: "Qureyş", totalAyahs: 4, revelationType: "Məkkə" },
+  { number: 107, name: "الماعون", transliteration: "Əl-Maun", translation: "Zəkat (Kömək)", totalAyahs: 7, revelationType: "Məkkə" },
+  { number: 108, name: "الكوثر", transliteration: "Əl-Kəvsər", translation: "Kəvsər (Bol Nemət)", totalAyahs: 3, revelationType: "Məkkə" },
+  { number: 109, name: "الكافرون", transliteration: "Əl-Kafirun", translation: "Kafirlər", totalAyahs: 6, revelationType: "Məkkə" },
+  { number: 110, name: "النصر", transliteration: "Ən-Nəsr", translation: "Kömək (Qələbə)", totalAyahs: 3, revelationType: "Mədinə" },
+  { number: 111, name: "المسد", transliteration: "Əl-Məsəd", translation: "Xurma Lifi", totalAyahs: 5, revelationType: "Məkkə" },
+  { number: 112, name: "الإخلاص", transliteration: "Əl-İxlas", translation: "Təmiz İnam", totalAyahs: 4, revelationType: "Məkkə" },
+  { number: 113, name: "الفلق", transliteration: "Əl-Fələq", translation: "Sübh Çağı", totalAyahs: 5, revelationType: "Məkkə" },
+  { number: 114, name: "الناس", transliteration: "Ən-Nas", translation: "İnsanlar", totalAyahs: 6, revelationType: "Məkkə" },
+];
+
+// Offline preloaded authentic Surahs with verified Uthmani script and Azerbaijani translations (Vasim Məmmədəliyev və Ziya Bünyadov tərcüməsi)
+export const PRELOADED_SURAHS: Record<number, Ayah[]> = {
+  // 1. Əl-Fatihə
+  1: [
+    { numberInSurah: 1, surahNumber: 1, arabic: "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ", translation: "Mərhəmətli və Rəhmli Allahın adı ilə!" },
+    { numberInSurah: 2, surahNumber: 1, arabic: "الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ", translation: "Həmd olsun aləmlərin Rəbbi olan Allaha," },
+    { numberInSurah: 3, surahNumber: 1, arabic: "الرَّحْمَٰنِ الرَّحِيمِ", translation: "Mərhəmətli və Rəhmli olana," },
+    { numberInSurah: 4, surahNumber: 1, arabic: "مَالِكِ يَوْمِ الدِّينِ", translation: "Haqq-hesab (cəza və mükafat) gününün Sahibinə!" },
+    { numberInSurah: 5, surahNumber: 1, arabic: "إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ", translation: "Yalnız Sənə ibadət edirik və yalnız Səndən kömək diləyirik." },
+    { numberInSurah: 6, surahNumber: 1, arabic: "اهْدِنَا الصِّرَاطَ الْمُسْتَقِيمَ", translation: "Bizi doğru yola yönəlt," },
+    { numberInSurah: 7, surahNumber: 1, arabic: "صِرَاطَ الَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ الْمَغْضُوبِ عَلَيْهِمْ وَلَا الضَّالِّينَ", translation: "Nemət bəxş etdiyin kəslərin yoluna; qəzəbə uğramışların və azmışların yoluna deyil!" },
+  ],
+
+  // 97. Əl-Qədr
+  97: [
+    { numberInSurah: 1, surahNumber: 97, arabic: "إِنَّا أَنزَلْنَاهُ فِي لَيْلَةِ الْقَدْرِ", translation: "Həqiqətən, Biz onu (Quranı) Qədr gecəsində nazil etdik!" },
+    { numberInSurah: 2, surahNumber: 97, arabic: "وَمَا أَدْرَاكَ مَا لَيْلَةُ الْقَدْرِ", translation: "Sən nə bilirsən ki, Qədr gecəsi nədir?" },
+    { numberInSurah: 3, surahNumber: 97, arabic: "لَيْلَةُ الْقَدْرِ خَيْرٌ مِّنْ أَلْفِ شَهْرٍ", translation: "Qədr gecəsi min aydan daha xeyirlidir!" },
+    { numberInSurah: 4, surahNumber: 97, arabic: "تَنَزَّلُ الْمَلَائِكَةُ وَالرُّوحُ فِيهَا بِإِذْنِ رَبِّهِم مِّن كُلِّ أَمْرٍ", translation: "O gecə mələklər və Ruh (Cəbrail) Rəbbinin izni ilə hər bir işdən ötrü yerə enirlər." },
+    { numberInSurah: 5, surahNumber: 97, arabic: "سَلَامٌ هِيَ حَتَّىٰ مَطْلَعِ الْفَجْرِ", translation: "O gecə dan yeri sökülənə qədər salamatlıqdır!" },
+  ],
+
+  // 103. Əl-Əsr
+  103: [
+    { numberInSurah: 1, surahNumber: 103, arabic: "وَالْعَصْرِ", translation: "And olsun əsrə (zamana)!" },
+    { numberInSurah: 2, surahNumber: 103, arabic: "إِنَّ الْإِنسَانَ لَفِي خُسْرٍ", translation: "Həqiqətən, insan ziyan içindədir." },
+    { numberInSurah: 3, surahNumber: 103, arabic: "إِلَّا الَّذِينَ آمَنُوا وَعَمِلُوا الصَّالِحَاتِ وَتَوَاصَوْا بِالْحَقِّ وَتَوَاصَوْا بِالصَّبْرِ", translation: "Yalnız iman gətirib yaxşı işlər görən, bir-birinə haqqı və səbri tövsiyə edən kəslərdən başqa!" },
+  ],
+
+  // 108. Əl-Kəvsər
+  108: [
+    { numberInSurah: 1, surahNumber: 108, arabic: "إِنَّا أَعْطَيْنَاكَ الْكَوْثَرَ", translation: "Həqiqətən, Biz sənə Kəvsəri (cənnətdəki bulağı və tükənməz nemətləri) bəxş etdik!" },
+    { numberInSurah: 2, surahNumber: 108, arabic: "فَصَلِّ لِرَبِّكَ وَانْحَرْ", translation: "Sən də Rəbbin üçün namaz qıl və qurban kəs!" },
+    { numberInSurah: 3, surahNumber: 108, arabic: "إِنَّ شَانِئَكَ هُوَ الْأَبْتَرُ", translation: "Şübhəsiz ki, sənə kin bəsləyənin özü sonsuzdur (nəsli kəsiləndir)!" },
+  ],
+
+  // 112. Əl-İxlas
+  112: [
+    { numberInSurah: 1, surahNumber: 112, arabic: "قُلْ هُوَ اللَّهُ أَحَدٌ", translation: "De: “O Allah Təkdir!" },
+    { numberInSurah: 2, surahNumber: 112, arabic: "اللَّهُ الصَّمَدُ", translation: "Allah Möhtac deyildir (hər şey Ona möhtacdır)!" },
+    { numberInSurah: 3, surahNumber: 112, arabic: "لَمْ يَلِدْ وَلَمْ يُولَدْ", translation: "O, nə doğmuş, nə də doğulmuşdur!" },
+    { numberInSurah: 4, surahNumber: 112, arabic: "وَلَمْ يَكُن لَّهُ كُفُوًا أَحَدٌ", translation: "Və Onun heç bir bənzəri də yoxdur!”" },
+  ],
+
+  // 113. Əl-Fələq
+  113: [
+    { numberInSurah: 1, surahNumber: 113, arabic: "قُلْ أَعُوذُ بِرَبِّ الْفَلَقِ", translation: "De: “Pənah aparıram sübhün Rəbbinə!" },
+    { numberInSurah: 2, surahNumber: 113, arabic: "مِن شَرِّ مَا خَلَقَ", translation: "Yaratdıqlarının şərindən," },
+    { numberInSurah: 3, surahNumber: 113, arabic: "وَمِن شَرِّ غَاسِقٍ إِذَا وَقَبَ", translation: "Zülmətə bürünən gecənin şərindən," },
+    { numberInSurah: 4, surahNumber: 113, arabic: "وَمِن شَرِّ النَّفَّاثَاتِ فِي الْعُقَدِ", translation: "Düyünlərə üfürən (cadu edən) qadınların şərindən," },
+    { numberInSurah: 5, surahNumber: 113, arabic: "وَمِن شَرِّ حَاسِدٍ إِذَا حَسَدَ", translation: "Və həsəd aparan zaman paxılın şərindən!”" },
+  ],
+
+  // 114. Ən-Nas
+  114: [
+    { numberInSurah: 1, surahNumber: 114, arabic: "قُلْ أَعُوذُ بِرَبِّ النَّاسِ", translation: "De: “Pənah aparıram insanların Rəbbinə," },
+    { numberInSurah: 2, surahNumber: 114, arabic: "مَلِكِ النَّاسِ", translation: "İnsanların Hökmdarına," },
+    { numberInSurah: 3, surahNumber: 114, arabic: "إِلَٰهِ النَّاسِ", translation: "İnsanların Məbuduna," },
+    { numberInSurah: 4, surahNumber: 114, arabic: "مِن شَرِّ الْوَسْوَاسِ الْخَنَّاسِ", translation: "Vəsvəsə verən, (Allahın adı çəkiləndə) qaçıb gizlənən şeytanın şərindən –" },
+    { numberInSurah: 5, surahNumber: 114, arabic: "الَّذِي يُوَسْوِسُ فِي صُدُورِ النَّاسِ", translation: "O kəs ki, insanların kökslərinə vəsvəsə salır," },
+    { numberInSurah: 6, surahNumber: 114, arabic: "مِنَ الْجِنَّةِ وَالنَّاسِ", translation: "Cinlərdən də (olur), insanlardan da!”" },
+  ],
+
+  // 94. Əl-İnşirah
+  94: [
+    { numberInSurah: 1, surahNumber: 94, arabic: "أَلَمْ نَشْرَحْ لَكَ صَدْرَكَ", translation: "Məgər Biz sənin köksünü açıb genişləndirmədikmi?" },
+    { numberInSurah: 2, surahNumber: 94, arabic: "وَوَضَعْنَا عَنكَ وِزْرَكَ", translation: "Ağır yükünü səndən götürmədikmi?" },
+    { numberInSurah: 3, surahNumber: 94, arabic: "الَّذِي أَنقَضَ ظَهْرَكَ", translation: "O yük ki, belini bükürdü." },
+    { numberInSurah: 4, surahNumber: 94, arabic: "وَرَفَعْنَا لَكَ ذِكْرَكَ", translation: "Və sənin ad-sanını ucaltmadıqmı?" },
+    { numberInSurah: 5, surahNumber: 94, arabic: "فَإِنَّ مَعَ الْعُسْرِ يُسْرًا", translation: "Şübhəsiz ki, hər bir çətinliklə yanaşı bir asanlıq vardır!" },
+    { numberInSurah: 6, surahNumber: 94, arabic: "إِنَّ مَعَ الْعُسْرِ يُسْرًا", translation: "Həqiqətən, hər çətinliklə bərabər bir asanlıq vardır!" },
+    { numberInSurah: 7, surahNumber: 94, arabic: "فَإِذَا فَرَغْتَ فَانصَبْ", translation: "Elə isə (bir işi) bitirən kimi digərinə başla," },
+    { numberInSurah: 8, surahNumber: 94, arabic: "وَإِلَىٰ رَبِّكَ فَارْغَب", translation: "Və yalnız Rəbbinə üz tut!" },
+  ],
+};
+
+// Daily Ayah rotation
+export const DAILY_AYAHS = [
+  {
+    surahName: "ər-Rəd",
+    surahNumber: 13,
+    ayahNumber: 28,
+    arabic: "أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ",
+    translation: "Bilin ki, qəlblər yalnız Allahı zikr etməklə rahatlıq tapar!",
+    context: "Həyatın qayğı və təlaşları içində insan qəlbinin həqiqi hüzur tapacağı tək ünvan Allahı xatırlamaq və Ona təvəkkül etməkdir."
+  },
+  {
+    surahName: "əl-Bəqərə",
+    surahNumber: 2,
+    ayahNumber: 152,
+    arabic: "فَاذْكُرُونِي أَذْكُرْكُمْ وَاشْكُرُوا لِي وَلَا تَكْفُرُونِ",
+    translation: "Məni yad edin ki, Mən də sizi yad edim! Mənə şükür edin və Məni danmayın!",
+    context: "Qulun Rəbbinə ən yaxın olduğu an Onu dilində və qəlbində zikr etdiyi andır."
+  },
+  {
+    surahName: "əl-Bəqərə",
+    surahNumber: 2,
+    ayahNumber: 186,
+    arabic: "وَإِذَا سَأَلَكَ عِبَادِي عَنِّي فَإِنِّي قَرِيبٌ ۖ أُجِيبُ دَعْوَةَ الدَّاعِ إِذَا دَعَانِ",
+    translation: "Bəndələrim Məni səndən soruşduqda (de ki), Mən onlara çox yaxınam. Dua edib Məni çağıranın duasını qəbul edərəm.",
+    context: "Heç bir vasitə olmadan hər an dualarımızı eşidən və cavab verən uca Rəbbimiz var."
+  },
+  {
+    surahName: "əl-İnşirah",
+    surahNumber: 94,
+    ayahNumber: 5,
+    arabic: "فَإِنَّ مَعَ الْعُسْرِ يُسْرًا",
+    translation: "Şübhəsiz ki, hər bir çətinliklə yanaşı mütləq bir asanlıq vardır!",
+    context: "Sınaqlar nə qədər ağır olsa da, Allah hər sıxıntının ardınca bir nicat qapısı açır."
+  },
+  {
+    surahName: "ət-Talaq",
+    surahNumber: 65,
+    ayahNumber: 3,
+    arabic: "وَمَن يَتَوَكَّلْ عَلَى اللَّهِ فَهُوَ حَسْبُهُ",
+    translation: "Kim Allaha təvəkkül etsə, Allah ona kifayətdir.",
+    context: "Bütün səbəbləri yerinə yetirdikdən sonra işi Allaha həvalə etmək qəlb rahatlığının açarıdır."
+  }
+];

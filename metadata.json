@@ -1,0 +1,6 @@
+{
+  "name": "Nur",
+  "description": "Azərbaycan dilində müasir və premium dini web tətbiq: Quran-i Kərim, dualar, elektron zikr təsbehi, dəqiq namaz vaxtları, qiblə kompas və Nur AI dini köməkçi.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,17 @@
+{
+  "name": "Nur - Müasir Dini Bələdçi",
+  "short_name": "Nur",
+  "description": "Azərbaycan dilində müasir və etibarlı dini web tətbiq",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#064e3b",
+  "theme_color": "#064e3b",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}
