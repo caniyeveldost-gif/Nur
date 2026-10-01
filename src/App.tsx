@@ -12,6 +12,7 @@ import { PrayerModal } from './components/PrayerModal';
 import { CalendarModal } from './components/CalendarModal';
 import { SearchModal } from './components/SearchModal';
 import { fetchPrayerTimes, calculateLocalPrayerTimes } from './services/apiService';
+import { scheduleDailyPrayerNotifications, registerServiceWorker } from './services/notificationService';
 import { BookmarkItem, CityPrayerData, UserSettings } from './types';
 
 export default function App() {
@@ -89,6 +90,12 @@ export default function App() {
       isMounted = false;
     };
   }, [settings.city]);
+
+  // Register service worker and schedule daily prayer notifications (Fajr, Maghrib, etc.)
+  useEffect(() => {
+    registerServiceWorker();
+    scheduleDailyPrayerNotifications(prayerData);
+  }, [prayerData]);
 
   // Update specific settings
   const handleUpdateSettings = (newPartial: Partial<UserSettings>) => {

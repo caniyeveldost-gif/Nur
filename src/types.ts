@@ -32,6 +32,8 @@ export interface Dua {
   translation: string; // Azərbaycan dilində məna
   source: string; // Mənbə (məs. Səhih Buxari, Müslim, Tirmizi və s.)
   repeatCount?: number;
+  audioUrl?: string;
+  reciter?: string;
 }
 
 export interface ZikrItem {

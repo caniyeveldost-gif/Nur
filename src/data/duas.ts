@@ -88,7 +88,9 @@ export const ALL_DUAS: Dua[] = [
     transliteration: 'Allahu lə iləhə illə Huvəl-Həyyul-Qayyum, lə tə\'xuzuhu sinətun va lə nəvm, ləhu mə fis-səməvati va mə fil-ərd...',
     translation: 'Allah! Ondan başqa ibadətə layiq olan məbud yoxdur. Əbədi Yaşayandır, bütün xəlq olunmuşların Qəyyumudur (hər şeyi idarə edəndir). Onu nə mürgü, nə də yuxu tutar...',
     source: 'əl-Bəqərə surəsi, 255-ci ayə; Səhih əl-Buxari, 2311',
-    repeatCount: 1
+    repeatCount: 1,
+    audioUrl: 'https://everyayah.com/data/Alafasy_128kbps/002255.mp3',
+    reciter: 'Mişari Rəşid əl-Əfasi'
   },
 
   // Yeməkdən əvvəl
@@ -134,7 +136,9 @@ export const ALL_DUAS: Dua[] = [
     transliteration: 'Subhənəlləzi səxxara lənə hazə va mə kunnə ləhu muqrinin, va innə ilə Rabbinə ləmunqalibun.',
     translation: 'Bunu bizə ram edən Allah pak və müqəddəsdir! Yoxsa bizim buna gücümüz çatmazdı. Şübhəsiz ki, biz Rəbbimizə qayıdacağıq!',
     source: 'əz-Zuxruf surəsi, 13-14; Səhih Müslim, 1342',
-    repeatCount: 1
+    repeatCount: 1,
+    audioUrl: 'https://everyayah.com/data/Alafasy_128kbps/043013.mp3',
+    reciter: 'Mişari Rəşid əl-Əfasi'
   },
 
   // Valideynlər üçün
@@ -146,7 +150,9 @@ export const ALL_DUAS: Dua[] = [
     transliteration: 'Rabbirhəmhuma kəmə rabbəyani sağira.',
     translation: 'Ey Rəbbim! Onlar məni körpəliyimdən tərbiyə edib böyütdükləri kimi, Sən də onlara rəhm et!',
     source: 'əl-İsra surəsi, 24-cü ayə',
-    repeatCount: 1
+    repeatCount: 1,
+    audioUrl: 'https://everyayah.com/data/Alafasy_128kbps/017024.mp3',
+    reciter: 'Mişari Rəşid əl-Əfasi'
   },
   {
     id: 'dua-valideyn-2',
@@ -156,7 +162,9 @@ export const ALL_DUAS: Dua[] = [
     transliteration: 'Rabbənəğfir li va livəlidəyyə va lil-mumininə yəvmə yəqumul-hisəb.',
     translation: 'Ey Rəbbimiz! Haqq-hesab qurulacağı gün məni, valideynlərimi və bütün möminləri bağışla!',
     source: 'İbrahim surəsi, 41-ci ayə',
-    repeatCount: 1
+    repeatCount: 1,
+    audioUrl: 'https://everyayah.com/data/Alafasy_128kbps/014041.mp3',
+    reciter: 'Mişari Rəşid əl-Əfasi'
   },
 
   // Çətinlik zamanı
@@ -168,7 +176,9 @@ export const ALL_DUAS: Dua[] = [
     transliteration: 'Lə iləhə illə Əntə subhənəkə inni kuntu minəz-zalimin.',
     translation: 'Səndən başqa heç bir ilah yoxdur! Sən pak və ucasan! Həqiqətən, mən haqsızlıq edənlərdən olmuşam!',
     source: 'əl-Ənbiya surəsi, 87-ci ayə; ət-Tirmizi, 3505',
-    repeatCount: 1
+    repeatCount: 1,
+    audioUrl: 'https://everyayah.com/data/Alafasy_128kbps/021087.mp3',
+    reciter: 'Mişari Rəşid əl-Əfasi'
   },
   {
     id: 'dua-cetinlik-2',
@@ -190,7 +200,9 @@ export const ALL_DUAS: Dua[] = [
     transliteration: 'Rabbi əvzi\'ni ən əşkurə ni\'mətəkəlləti ən\'amtə aleyyə va alə vəlidəyyə va ən ə\'mələ salihən tərdahu.',
     translation: 'Ey Rəbbim! Mənə və valideynlərimə bəxş etdiyin nemətlərə şükür etmək və Sənin razı qalacağın yaxşı əməllər görmək üçün mənə ilham ver!',
     source: 'ən-Nəml surəsi, 19-cu ayə',
-    repeatCount: 1
+    repeatCount: 1,
+    audioUrl: 'https://everyayah.com/data/Alafasy_128kbps/027019.mp3',
+    reciter: 'Mişari Rəşid əl-Əfasi'
   },
 
   // Bağışlanma
@@ -202,7 +214,9 @@ export const ALL_DUAS: Dua[] = [
     transliteration: 'Rabbənə zaləmnə ənfusənə va il-ləm təğfir lənə va tərhəmnə lənəkunənnə minəl-xasirin.',
     translation: 'Ey Rəbbimiz! Biz özümüzə zülm etdik. Əgər bizi bağışlamasan və bizə rəhm etməsən, şübhəsiz ki, ziyana uğrayanlardan olarıq!',
     source: 'əl-Əraf surəsi, 23-cü ayə',
-    repeatCount: 1
+    repeatCount: 1,
+    audioUrl: 'https://everyayah.com/data/Alafasy_128kbps/007023.mp3',
+    reciter: 'Mişari Rəşid əl-Əfasi'
   },
 
   // Digər dualar
@@ -214,7 +228,9 @@ export const ALL_DUAS: Dua[] = [
     transliteration: 'Rabbi zidni \'ilma.',
     translation: 'Ey Rəbbim! Mənim elmimi artır!',
     source: 'Taha surəsi, 114-cü ayə',
-    repeatCount: 1
+    repeatCount: 1,
+    audioUrl: 'https://everyayah.com/data/Alafasy_128kbps/020114.mp3',
+    reciter: 'Mişari Rəşid əl-Əfasi'
   },
   {
     id: 'dua-diger-2',

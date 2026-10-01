@@ -7,10 +7,16 @@ import {
   Check,
   Sparkles,
   Share2,
-  ChevronDown
+  ChevronDown,
+  Volume2,
+  VolumeX,
+  Headphones,
+  Pause,
+  Play
 } from 'lucide-react';
 import { DUA_CATEGORIES, ALL_DUAS } from '../data/duas';
 import { Dua } from '../types';
+import { DuaAudioPlayer } from './DuaAudioPlayer';
 
 interface DuasTabProps {
   initialDuaId?: string;
@@ -22,6 +28,10 @@ export const DuasTab: React.FC<DuasTabProps> = ({ initialDuaId, onToggleBookmark
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Audio player state
+  const [activeAudioDua, setActiveAudioDua] = useState<Dua | null>(null);
+  const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
 
   useEffect(() => {
     if (initialDuaId) {
@@ -40,6 +50,14 @@ export const DuasTab: React.FC<DuasTabProps> = ({ initialDuaId, onToggleBookmark
     }
   }, [initialDuaId]);
 
+  // Clean up audio on unmount
+  useEffect(() => {
+    return () => {
+      setIsPlayingAudio(false);
+      setActiveAudioDua(null);
+    };
+  }, []);
+
   const handleCopyDua = (dua: Dua) => {
     const text = `${dua.title}\n\nƏrəbcə:\n${dua.arabic}\n\nOxunuşu:\n${dua.transliteration}\n\nMənası:\n${dua.translation}\n\nMənbə: ${dua.source}`;
     navigator.clipboard.writeText(text);
@@ -57,8 +75,53 @@ export const DuasTab: React.FC<DuasTabProps> = ({ initialDuaId, onToggleBookmark
     return matchesCategory && matchesSearch;
   });
 
+  // Audio handler per card
+  const handleToggleDuaAudio = (dua: Dua) => {
+    if (activeAudioDua?.id === dua.id) {
+      setIsPlayingAudio(!isPlayingAudio);
+    } else {
+      setActiveAudioDua(dua);
+      setIsPlayingAudio(true);
+    }
+  };
+
+  // Next / Prev Dua navigation in the audio player
+  const currentIndex = activeAudioDua ? filteredDuas.findIndex((d) => d.id === activeAudioDua.id) : -1;
+  const hasNext = currentIndex >= 0 && currentIndex < filteredDuas.length - 1;
+  const hasPrev = currentIndex > 0;
+
+  const handleNextDua = () => {
+    if (hasNext) {
+      const next = filteredDuas[currentIndex + 1];
+      setActiveAudioDua(next);
+      setIsPlayingAudio(true);
+      // smoothly scroll into view
+      const el = document.getElementById(`dua-card-${next.id}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  };
+
+  const handlePrevDua = () => {
+    if (hasPrev) {
+      const prev = filteredDuas[currentIndex - 1];
+      setActiveAudioDua(prev);
+      setIsPlayingAudio(true);
+      const el = document.getElementById(`dua-card-${prev.id}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  };
+
+  const handleCloseAudio = () => {
+    setIsPlayingAudio(false);
+    setActiveAudioDua(null);
+  };
+
   return (
-    <div id="duas-view" className="space-y-4 pb-12">
+    <div id="duas-view" className={`space-y-4 ${activeAudioDua ? 'pb-36 sm:pb-32' : 'pb-16'}`}>
       {/* Title & Description */}
       <div>
         <h2 className="text-lg font-bold tracking-tight text-emerald-950 dark:text-emerald-100 flex items-center gap-1.5">
@@ -66,7 +129,7 @@ export const DuasTab: React.FC<DuasTabProps> = ({ initialDuaId, onToggleBookmark
           <span>Dualar (Hisnul-Muslim)</span>
         </h2>
         <p className="text-xs text-stone-600 dark:text-stone-300">
-          Quran və Səhih Sünnədən gündəlik həyat, səhər-axşam və sıxıntı duaları
+          Quran və Səhih Sünnədən gündəlik həyat, səhər-axşam və sıxıntı duaları — səsli qiraət ilə
         </p>
       </div>
 
@@ -126,12 +189,20 @@ export const DuasTab: React.FC<DuasTabProps> = ({ initialDuaId, onToggleBookmark
       <div className="space-y-3.5">
         {filteredDuas.map((dua) => {
           const isSaved = isBookmarked('dua', dua.id);
+          const isCardActive = activeAudioDua?.id === dua.id;
+          const isCardPlaying = isCardActive && isPlayingAudio;
 
           return (
             <div
               key={dua.id}
               id={`dua-card-${dua.id}`}
-              className="rounded-2xl p-4 sm:p-5 bg-white dark:bg-[#0c1e15] border border-stone-200/80 dark:border-emerald-800/40 shadow-xs hover:border-emerald-600/40 transition"
+              className={`rounded-2xl p-4 sm:p-5 bg-white dark:bg-[#0c1e15] border shadow-xs transition duration-200 ${
+                isCardPlaying
+                  ? 'border-amber-400/80 dark:border-amber-400/60 ring-2 ring-amber-400/20 shadow-md'
+                  : isCardActive
+                  ? 'border-emerald-600/60 dark:border-emerald-500/50'
+                  : 'border-stone-200/80 dark:border-emerald-800/40 hover:border-emerald-600/40'
+              }`}
             >
               {/* Header: Title and Actions */}
               <div className="flex items-start justify-between gap-3 pb-3 border-b border-stone-100 dark:border-emerald-900/30">
@@ -152,6 +223,36 @@ export const DuasTab: React.FC<DuasTabProps> = ({ initialDuaId, onToggleBookmark
                 </div>
 
                 <div className="flex items-center gap-1 shrink-0">
+                  {/* Listen / Audio Recitation Button */}
+                  <button
+                    onClick={() => handleToggleDuaAudio(dua)}
+                    className={`px-2 py-1.5 rounded-lg transition flex items-center gap-1.5 text-xs font-semibold ${
+                      isCardPlaying
+                        ? 'text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 ring-1 ring-amber-400/50'
+                        : isCardActive
+                        ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40'
+                        : 'text-emerald-800 dark:text-amber-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/40 bg-stone-50 dark:bg-emerald-950/30 border border-stone-200/60 dark:border-emerald-800/30'
+                    }`}
+                    title={isCardPlaying ? "Qiraəti dayandır" : "Qiraəti dinlə"}
+                    aria-label={isCardPlaying ? "Qiraəti dayandır" : "Qiraəti dinlə"}
+                  >
+                    {isCardPlaying ? (
+                      <>
+                        <span className="flex items-end gap-0.5 h-3.5 w-3 justify-center">
+                          <span className="w-0.5 bg-amber-500 rounded-full animate-pulse h-2" />
+                          <span className="w-0.5 bg-amber-500 rounded-full animate-pulse h-3.5 delay-75" />
+                          <span className="w-0.5 bg-amber-500 rounded-full animate-pulse h-2 delay-150" />
+                        </span>
+                        <span className="text-[11px]">Pauza</span>
+                      </>
+                    ) : (
+                      <>
+                        <Volume2 className="w-3.5 h-3.5 text-emerald-700 dark:text-amber-400" />
+                        <span className="text-[11px]">Dinlə</span>
+                      </>
+                    )}
+                  </button>
+
                   {/* Copy Button */}
                   <button
                     onClick={() => handleCopyDua(dua)}
@@ -210,9 +311,15 @@ export const DuasTab: React.FC<DuasTabProps> = ({ initialDuaId, onToggleBookmark
                 “{dua.translation}”
               </div>
 
-              {/* Source / Citation */}
+              {/* Source / Citation & Reciter info */}
               <div className="mt-3 pt-2 border-t border-stone-100 dark:border-emerald-900/30 text-[11px] text-stone-600 dark:text-stone-300 flex items-center justify-between">
                 <span>Mənbə: {dua.source}</span>
+                {isCardActive && (
+                  <span className="flex items-center gap-1 text-emerald-700 dark:text-amber-400 font-medium">
+                    <Headphones className="w-3 h-3" />
+                    <span>{isCardPlaying ? 'Qiraət oxunur' : 'Dayandırılıb'}</span>
+                  </span>
+                )}
               </div>
             </div>
           );
@@ -223,6 +330,20 @@ export const DuasTab: React.FC<DuasTabProps> = ({ initialDuaId, onToggleBookmark
         <div className="py-12 text-center text-stone-500">
           Bu axtarışa uyğun dua tapılmadı.
         </div>
+      )}
+
+      {/* Floating Dua Audio Player Bar */}
+      {activeAudioDua && (
+        <DuaAudioPlayer
+          currentDua={activeAudioDua}
+          isPlaying={isPlayingAudio}
+          onTogglePlay={() => setIsPlayingAudio(!isPlayingAudio)}
+          onNextDua={handleNextDua}
+          onPrevDua={handlePrevDua}
+          onClose={handleCloseAudio}
+          hasNext={hasNext}
+          hasPrev={hasPrev}
+        />
       )}
     </div>
   );
