@@ -1,60 +1,192 @@
 // Service Worker for "Nur" Islamic Web Application
-// Handles offline caching, background prayer time notifications, and push events
+// Production PWA caching, background prayer notifications, and offline resilience
 
-const CACHE_NAME = 'nur-cache-v1';
+const CACHE_NAME = 'nur-cache-v2';
+const STATIC_ASSETS = [
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/icon.svg',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/icon-maskable-512.png',
+];
 
+// Install: Cache core application shell
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
-});
-
-self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
-      );
-    }).then(() => self.clients.claim())
+    caches
+      .open(CACHE_NAME)
+      .then((cache) => cache.addAll(STATIC_ASSETS))
+      .then(() => self.skipWaiting())
+      .catch((err) => console.warn('[SW] Core asset precaching warning:', err))
   );
 });
 
-// Handle push notification events
+// Activate: Delete old caches (e.g. nur-cache-v1) and claim clients
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(
+          keys
+            .filter((key) => key !== CACHE_NAME)
+            .map((key) => {
+              console.log('[SW] Removing deprecated cache:', key);
+              return caches.delete(key);
+            })
+        )
+      )
+      .then(() => self.clients.claim())
+  );
+});
+
+// Fetch strategies:
+// 1. Navigation (HTML): Network first with cache fallback to /index.html (never blank screen!)
+// 2. Quran API & static fonts/scripts: Cache first with network fallback
+// 3. Application API / dynamic routes: Network first with cache fallback
+self.addEventListener('fetch', (event) => {
+  const { request } = event;
+  const url = new URL(request.url);
+
+  // Skip non-GET requests
+  if (request.method !== 'GET') return;
+
+  // Skip Chrome extension and non-http(s) requests
+  if (!url.protocol.startsWith('http')) return;
+
+  // 1. Navigation requests (Page reloads, deep links)
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response && response.status === 200) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        })
+        .catch(async () => {
+          const cached = await caches.match(request);
+          if (cached) return cached;
+          const fallback = await caches.match('/index.html');
+          return fallback || new Response('Offline', { status: 503, statusText: 'Offline' });
+        })
+    );
+    return;
+  }
+
+  // 2. Quran Cloud API data: Cache first (immutable Quranic text)
+  if (url.hostname.includes('alquran.cloud') || url.pathname.includes('/surah/')) {
+    event.respondWith(
+      caches.match(request).then((cachedResponse) => {
+        if (cachedResponse) return cachedResponse;
+        return fetch(request).then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return networkResponse;
+        });
+      })
+    );
+    return;
+  }
+
+  // 3. Static local assets (JS bundles, CSS, images, icons, fonts)
+  if (
+    url.origin === self.location.origin &&
+    (url.pathname.startsWith('/assets/') ||
+      url.pathname.endsWith('.js') ||
+      url.pathname.endsWith('.css') ||
+      url.pathname.endsWith('.svg') ||
+      url.pathname.endsWith('.png') ||
+      url.pathname.endsWith('.woff2'))
+  ) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) return cached;
+        return fetch(request).then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return networkResponse;
+        });
+      })
+    );
+    return;
+  }
+
+  // 4. API & other requests: Network first with cache fallback
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(
+      fetch(request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match(request))
+    );
+    return;
+  }
+
+  // Default: Stale-while-revalidate or Network with cache fallback
+  event.respondWith(
+    caches.match(request).then((cached) => {
+      const fetchPromise = fetch(request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+          }
+          return networkResponse;
+        })
+        .catch(() => cached);
+      return cached || fetchPromise;
+    })
+  );
+});
+
+// Push notification handling
 self.addEventListener('push', (event) => {
   let data = {
     title: 'Nur - Namaz Vaxtı',
     body: 'Namaz vaxtı daxil oldu.',
     tag: 'prayer-time',
-    url: '/'
+    url: '/',
   };
 
   if (event.data) {
     try {
       data = Object.assign(data, event.data.json());
-    } catch (e) {
+    } catch (_e) {
       data.body = event.data.text();
     }
   }
 
   const options = {
     body: data.body,
-    icon: '/icon.svg',
-    badge: '/icon.svg',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
     vibrate: [200, 100, 200, 100, 200],
     tag: data.tag || 'prayer-notification',
     renotify: true,
     data: {
-      url: data.url || '/'
-    }
+      url: data.url || '/',
+    },
   };
 
-  event.waitUntil(
-    self.registration.showNotification(data.title, options)
-  );
+  event.waitUntil(self.registration.showNotification(data.title, options));
 });
 
-// Handle notification click to bring app window to focus
+// Notification click handling
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-
   const targetUrl = (event.notification.data && event.notification.data.url) || '/';
 
   event.waitUntil(
@@ -71,15 +203,15 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-// Allow client script to trigger notifications via Service Worker
+// Message receiver from client (e.g. immediate test or notification dispatch)
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
     const { title, options } = event.data;
     self.registration.showNotification(title, {
-      icon: '/icon.svg',
-      badge: '/icon.svg',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
       vibrate: [200, 100, 200],
-      ...options
+      ...options,
     });
   }
 });

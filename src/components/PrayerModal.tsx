@@ -199,13 +199,13 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
               </div>
               <div>
                 <h3 className="text-xs sm:text-sm font-bold text-stone-900 dark:text-stone-100 flex items-center gap-1.5">
-                  <span>Gündəlik Push Bildirişləri</span>
+                  <span>Gündəlik Namaz Bildirişləri</span>
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-amber-300 font-semibold">
-                    Notification API
+                    Cihazdaxili Xatırlatma
                   </span>
                 </h3>
                 <p className="text-[11px] text-stone-600 dark:text-stone-300">
-                  Sübh (Fəcr) və Axşam (Məğrib) namaz vaxtlarında xatırlatma
+                  Sübh (Fəcr) və Axşam (Məğrib) namaz vaxtlarında avtomatik xatırlatma
                 </p>
               </div>
             </div>
@@ -412,6 +412,12 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
                   </span>
                 </div>
               )}
+
+              {/* Informative transparency notice on local device notification behavior */}
+              <div className="p-2.5 rounded-xl bg-emerald-500/10 dark:bg-emerald-950/30 text-stone-600 dark:text-stone-300 text-[11px] leading-relaxed border border-emerald-500/20">
+                <span className="font-semibold text-emerald-800 dark:text-emerald-300">ℹ️ Cihazdaxili xatırlatma: </span>
+                Tətbiq və ya brauzer açıq olduqda təyin olunmuş dəqiqədə xəbərdarlıq edir. Şəxsi məlumatlarınız heç bir kənar serverə ötürülmür.
+              </div>
             </div>
           )}
         </div>
@@ -446,9 +452,25 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
           ))}
         </div>
 
-        {/* Informational Footer Note */}
-        <div className="mt-4 p-3 rounded-xl bg-stone-50 dark:bg-emerald-950/30 text-[11px] text-stone-600 dark:text-stone-300 leading-relaxed">
-          Namaz vaxtları Azərbaycan Respublikası Dini Qurumlarla İş üzrə Dövlət Komitəsi və Qafqaz Müsəlmanları İdarəsinin astronomik təqviminə uyğun hesablanır. Bildirişlər standart Web Notification və Service Worker vasitəsilə çatdırılır.
+        {/* Calculation Specs & Transparency Card */}
+        <div className="mt-4 p-3.5 rounded-2xl bg-stone-50 dark:bg-emerald-950/30 text-xs text-stone-600 dark:text-stone-300 space-y-2 border border-stone-200/80 dark:border-emerald-900/40">
+          <div className="flex items-center justify-between text-[11px] pb-2 border-b border-stone-200/60 dark:border-emerald-900/30">
+            <span className="font-semibold text-stone-500 dark:text-stone-400">Mənbə:</span>
+            <span className="font-bold text-emerald-800 dark:text-amber-300">Astronomik hesablama · Adhan</span>
+          </div>
+          <div className="flex items-center justify-between text-[11px] pb-2 border-b border-stone-200/60 dark:border-emerald-900/30">
+            <span className="font-semibold text-stone-500 dark:text-stone-400">Hesablama Metodu:</span>
+            <span className="font-medium text-stone-800 dark:text-stone-200">{prayerData.calculationMethod || 'MuslimWorldLeague'}</span>
+          </div>
+          <div className="flex items-center justify-between text-[11px] pb-2 border-b border-stone-200/60 dark:border-emerald-900/30">
+            <span className="font-semibold text-stone-500 dark:text-stone-400">Əsr Məzhəbi:</span>
+            <span className="font-medium text-stone-800 dark:text-stone-200">
+              {prayerData.madhab === 'hanafi' ? 'Hənəfi (2x kölgə)' : 'Şafii / Cümhur (1x kölgə)'}
+            </span>
+          </div>
+          <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed pt-1">
+            Vaxtlar seçilmiş şəhərin coğrafi GPS koordinatları və seçilmiş astronomik hesablama metodu əsasında təyin olunur. Məscidlər arasındakı fərdi fərqlər üçün Profil bölməsindən dəqiqə tənzimləmələri (+/-) edə bilərsiniz.
+          </p>
         </div>
       </div>
     </div>

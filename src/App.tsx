@@ -11,32 +11,35 @@ import { QiblaView } from './components/QiblaView';
 import { PrayerModal } from './components/PrayerModal';
 import { CalendarModal } from './components/CalendarModal';
 import { SearchModal } from './components/SearchModal';
-import { fetchPrayerTimes, calculateLocalPrayerTimes } from './services/apiService';
-import { scheduleDailyPrayerNotifications, registerServiceWorker } from './services/notificationService';
-import { BookmarkItem, CityPrayerData, UserSettings } from './types';
+import { usePrayerTimes } from './hooks/usePrayerTimes';
+import {
+  scheduleDailyPrayerNotifications,
+  cancelDailyPrayerNotifications,
+  registerServiceWorker,
+} from './services/notificationService';
+import { safeStorage } from './services/storageHelper';
+import { BookmarkItem, UserSettings, TabNavigationParams, NavigateTabFn } from './types';
 
 export default function App() {
   // 1. User Settings State
   const [settings, setSettings] = useState<UserSettings>(() => {
-    const saved = localStorage.getItem('nur_user_settings');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (_e) {}
-    }
-    return {
+    return safeStorage.getItem<UserSettings>('nur_user_settings', {
       userName: '',
       theme: 'light',
       fontSize: 'medium',
       city: 'Baki',
       vibrationEnabled: true,
       soundEnabled: true,
-    };
+      prayerCalcMethod: 'MuslimWorldLeague',
+      prayerMadhab: 'shafi',
+      prayerAdjustments: {},
+    });
   });
 
   // 2. Active Tab State
   const [activeTab, setActiveTab] = useState<string>('home');
   const [quranSurahParam, setQuranSurahParam] = useState<number | undefined>(undefined);
+  const [quranAyahParam, setQuranAyahParam] = useState<number | undefined>(undefined);
   const [duaParam, setDuaParam] = useState<string | undefined>(undefined);
   const [zikrParam, setZikrParam] = useState<string | undefined>(undefined);
 
@@ -47,23 +50,15 @@ export default function App() {
 
   // 4. Bookmarks State
   const [bookmarks, setBookmarks] = useState<BookmarkItem[]>(() => {
-    const saved = localStorage.getItem('nur_user_bookmarks');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (_e) {}
-    }
-    return [];
+    return safeStorage.getItem<BookmarkItem[]>('nur_user_bookmarks', []);
   });
 
-  // 5. Prayer Data State
-  const [prayerData, setPrayerData] = useState<CityPrayerData>(() =>
-    calculateLocalPrayerTimes(settings.city)
-  );
+  // 5. Centralized Prayer Times Hook (syncs with city, calcMethod, madhab, adjustments)
+  const { prayerData } = usePrayerTimes(settings);
 
   // Sync settings to localStorage and document classes
   useEffect(() => {
-    localStorage.setItem('nur_user_settings', JSON.stringify(settings));
+    safeStorage.setItem('nur_user_settings', settings);
 
     // Theme class on document element
     if (settings.theme === 'dark') {
@@ -75,26 +70,18 @@ export default function App() {
 
   // Sync bookmarks to localStorage
   useEffect(() => {
-    localStorage.setItem('nur_user_bookmarks', JSON.stringify(bookmarks));
+    safeStorage.setItem('nur_user_bookmarks', bookmarks);
   }, [bookmarks]);
 
-  // Load prayer times when city changes
-  useEffect(() => {
-    let isMounted = true;
-    fetchPrayerTimes(settings.city).then((data) => {
-      if (isMounted) {
-        setPrayerData(data);
-      }
-    });
-    return () => {
-      isMounted = false;
-    };
-  }, [settings.city]);
-
-  // Register service worker and schedule daily prayer notifications (Fajr, Maghrib, etc.)
+  // Register service worker and schedule daily prayer notifications whenever prayerData updates
   useEffect(() => {
     registerServiceWorker();
     scheduleDailyPrayerNotifications(prayerData);
+
+    return () => {
+      // Clear on cleanup/unmount
+      cancelDailyPrayerNotifications();
+    };
   }, [prayerData]);
 
   // Update specific settings
@@ -114,9 +101,14 @@ export default function App() {
   };
 
   // Navigation handler
-  const handleNavigateTab = (tabId: string, subParam?: any) => {
-    if (tabId === 'quran' && subParam?.surahNumber) {
-      setQuranSurahParam(subParam.surahNumber);
+  const handleNavigateTab: NavigateTabFn = (tabId: string, subParam?: TabNavigationParams) => {
+    if (tabId === 'quran') {
+      if (subParam?.surahNumber) {
+        setQuranSurahParam(subParam.surahNumber);
+      }
+      if (subParam?.ayahNumber) {
+        setQuranAyahParam(subParam.ayahNumber);
+      }
     }
     if (tabId === 'duas' && subParam?.duaId) {
       setDuaParam(subParam.duaId);
@@ -194,6 +186,7 @@ export default function App() {
         {activeTab === 'quran' && (
           <QuranTab
             initialSurahNumber={quranSurahParam}
+            initialAyahNumber={quranAyahParam}
             onToggleBookmark={handleToggleBookmark}
             isBookmarked={isBookmarked}
             globalFontSize={settings.fontSize}
@@ -235,6 +228,7 @@ export default function App() {
             bookmarks={bookmarks}
             onRemoveBookmark={handleRemoveBookmark}
             onNavigateTab={handleNavigateTab}
+            onOpenPrayerModal={() => setIsPrayerModalOpen(true)}
           />
         )}
       </main>

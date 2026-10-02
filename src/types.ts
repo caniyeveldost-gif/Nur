@@ -53,6 +53,10 @@ export interface CityPrayerData {
   lng: number;
   qiblaAngle: number; // Degrees clockwise from North
   distanceToKaabaKm: number;
+  date?: string;
+  calculationMethod?: string;
+  madhab?: string;
+  source?: string;
   timings: {
     fajr: string;
     sunrise: string;
@@ -60,6 +64,8 @@ export interface CityPrayerData {
     asr: string;
     maghrib: string;
     isha: string;
+    midnight?: string;
+    tahajjud?: string;
   };
 }
 
@@ -82,6 +88,17 @@ export interface LastRead {
   timestamp: string;
 }
 
+export interface CustomZikrItem {
+  id: string;
+  title: string;
+  arabic?: string;
+  transliteration?: string;
+  translation?: string;
+  defaultTarget: number;
+  count: number;
+  createdAt: string;
+}
+
 export interface UserSettings {
   userName: string;
   theme: 'light' | 'dark';
@@ -89,7 +106,41 @@ export interface UserSettings {
   city: string;
   vibrationEnabled: boolean;
   soundEnabled: boolean;
+  prayerCalcMethod?: PrayerCalculationMethod;
+  prayerMadhab?: PrayerMadhab;
+  prayerAdjustments?: {
+    fajr?: number;
+    sunrise?: number;
+    dhuhr?: number;
+    asr?: number;
+    maghrib?: number;
+    isha?: number;
+  };
+  quranArabicFontSize?: number;
+  quranTranslationFontSize?: number;
+  quranLineHeight?: 'comfortable' | 'normal' | 'compact';
+  onboardingCompleted?: boolean;
 }
+
+export type PrayerCalculationMethod =
+  | 'MuslimWorldLeague'
+  | 'Turkey'
+  | 'Tehran'
+  | 'Karachi'
+  | 'NorthAmerica'
+  | 'Egyptian'
+  | 'UmmAlQura';
+
+export type PrayerMadhab = 'shafi' | 'hanafi';
+
+export interface TabNavigationParams {
+  surahNumber?: number;
+  ayahNumber?: number;
+  duaId?: string;
+  zikrId?: string;
+}
+
+export type NavigateTabFn = (tabId: string, params?: TabNavigationParams) => void;
 
 export interface UserProfile {
   name: string;

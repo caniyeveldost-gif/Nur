@@ -3,13 +3,66 @@ import path from "path";
 import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
+import {
+  Coordinates,
+  CalculationMethod,
+  PrayerTimes,
+  Madhab,
+  HighLatitudeRule,
+  SunnahTimes,
+  Qibla,
+} from "adhan";
 
 dotenv.config();
 
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: "100kb" }));
+
+// In-memory sliding window rate limiter for AI chat (max 25 requests per minute per IP)
+const ipRateLimits = new Map<string, { count: number; resetTime: number }>();
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const limitData = ipRateLimits.get(ip);
+  if (!limitData || now > limitData.resetTime) {
+    ipRateLimits.set(ip, { count: 1, resetTime: now + 60000 });
+    return true;
+  }
+  if (limitData.count >= 25) {
+    return false;
+  }
+  limitData.count += 1;
+  return true;
+}
+
+// Clean up stale rate limits every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, data] of ipRateLimits.entries()) {
+    if (now > data.resetTime) {
+      ipRateLimits.delete(ip);
+    }
+  }
+}, 300000);
+
+// Helper to get Baku date string
+function getBakuDateStr(date: Date = new Date()): string {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Baku',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const parts = formatter.formatToParts(date);
+    const y = parts.find((p) => p.type === 'year')?.value;
+    const m = parts.find((p) => p.type === 'month')?.value;
+    const d = parts.find((p) => p.type === 'day')?.value;
+    if (y && m && d) return `${y}-${m}-${d}`;
+  } catch (_e) {}
+  return date.toISOString().split('T')[0];
+}
 
 // Lazy-initialized Gemini client
 let aiClient: GoogleGenAI | null = null;
@@ -36,91 +89,100 @@ app.get("/api/health", (_req: Request, res: Response) => {
   res.json({ status: "ok", app: "Nur", time: new Date().toISOString() });
 });
 
-// Azerbaijani city coordinates and time offsets from Baku (minutes)
+// Azerbaijani city coordinates for astronomical calculations
+// AUDIT NOTE: Manual city 'offsetMinutes' have been completely removed.
+// Adhan calculates precise astronomical solar prayer times directly from each city's exact
+// geographical latitude and longitude (e.g. Gəncə 46.36°E vs Bakı 49.87°E). Adding manual offsets
+// on top of astronomical coordinates would produce double-offset errors.
 interface CityInfo {
   name: string;
   lat: number;
   lng: number;
-  offsetMinutes: number; // Offset relative to Baku standard prayer times
 }
 
 const AZ_CITIES: Record<string, CityInfo> = {
-  Baki: { name: "Bakı", lat: 40.4093, lng: 49.8671, offsetMinutes: 0 },
-  Sumqayit: { name: "Sumqayıt", lat: 40.5897, lng: 49.6686, offsetMinutes: 1 },
-  Gence: { name: "Gəncə", lat: 40.6828, lng: 46.3606, offsetMinutes: 14 },
-  Lenkeran: { name: "Lənkəran", lat: 38.7529, lng: 48.8475, offsetMinutes: 4 },
-  Masalli: { name: "Masallı", lat: 39.0341, lng: 48.6654, offsetMinutes: 5 },
-  Astara: { name: "Astara", lat: 38.4559, lng: 48.8744, offsetMinutes: 4 },
-  Seki: { name: "Şəki", lat: 41.1919, lng: 47.1706, offsetMinutes: 11 },
-  Mingecevir: { name: "Mingəçevir", lat: 40.7703, lng: 47.0496, offsetMinutes: 11 },
-  Naxcivan: { name: "Naxçıvan", lat: 39.2089, lng: 45.4122, offsetMinutes: 18 },
-  Quba: { name: "Quba", lat: 41.3643, lng: 48.5134, offsetMinutes: 5 },
-  Samaxi: { name: "Şamaxı", lat: 40.6319, lng: 48.6414, offsetMinutes: 5 },
-  Susa: { name: "Şuşa", lat: 39.7588, lng: 46.7497, offsetMinutes: 13 },
-  Xankendi: { name: "Xankəndi", lat: 39.8265, lng: 46.7656, offsetMinutes: 13 },
-  Zaqatala: { name: "Zaqatala", lat: 41.6336, lng: 46.6433, offsetMinutes: 13 },
+  Baki: { name: "Bakı", lat: 40.4093, lng: 49.8671 },
+  Sumqayit: { name: "Sumqayıt", lat: 40.5897, lng: 49.6686 },
+  Gence: { name: "Gəncə", lat: 40.6828, lng: 46.3606 },
+  Lenkeran: { name: "Lənkəran", lat: 38.7529, lng: 48.8475 },
+  Masalli: { name: "Masallı", lat: 39.0341, lng: 48.6654 },
+  Astara: { name: "Astara", lat: 38.4559, lng: 48.8744 },
+  Seki: { name: "Şəki", lat: 41.1919, lng: 47.1706 },
+  Mingecevir: { name: "Mingəçevir", lat: 40.7703, lng: 47.0496 },
+  Naxcivan: { name: "Naxçıvan", lat: 39.2089, lng: 45.4122 },
+  Quba: { name: "Quba", lat: 41.3643, lng: 48.5134 },
+  Samaxi: { name: "Şamaxı", lat: 40.6319, lng: 48.6414 },
+  Susa: { name: "Şuşa", lat: 39.7588, lng: 46.7497 },
+  Xankendi: { name: "Xankəndi", lat: 39.8265, lng: 46.7656 },
+  Zaqatala: { name: "Zaqatala", lat: 41.6336, lng: 46.6433 },
 };
 
-// Calculation of base prayer times for today in Baku
-function getBaseBakuPrayerTimes(date: Date) {
-  const dayOfYear = Math.floor(
-    (date.getTime() - new Date(date.getFullYear(), 0, 0).getTime()) / 1000 / 60 / 60 / 24
-  );
-  
-  // Seasonal approximate astronomical curves for Baku latitude (40.4° N)
-  // Sübh (Fajr): ~04:00 (summer) to ~06:30 (winter)
-  const seasonSin = Math.sin(((dayOfYear - 80) * 2 * Math.PI) / 365);
-  
-  const fajrMin = Math.round(330 - seasonSin * 70); // 05:30 base +/- 70min
-  const sunriseMin = Math.round(415 - seasonSin * 65); // 06:55 base +/- 65min
-  const dhuhrMin = 770; // 12:50 base
-  const asrMin = Math.round(980 + seasonSin * 45); // 16:20 base +/- 45min
-  const maghribMin = Math.round(1125 + seasonSin * 65); // 18:45 base +/- 65min
-  const ishaMin = Math.round(1210 + seasonSin * 60); // 20:10 base +/- 60min
-
-  return {
-    fajr: fajrMin,
-    sunrise: sunriseMin,
-    dhuhr: dhuhrMin,
-    asr: asrMin,
-    maghrib: maghribMin,
-    isha: ishaMin,
-  };
+// Helper to format Date to HH:mm in Asia/Baku timezone
+function formatTimeToBaku(date: Date, minuteAdjustment: number = 0): string {
+  const adjusted = new Date(date.getTime() + minuteAdjustment * 60000);
+  return adjusted.toLocaleTimeString("az-AZ", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Baku",
+    hour12: false,
+  });
 }
 
-function formatMinutesToTime(totalMinutes: number): string {
-  const normalized = (totalMinutes + 1440) % 1440;
-  const hours = Math.floor(normalized / 60);
-  const minutes = normalized % 60;
-  return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
-}
-
-// Prayer times endpoint
+// Prayer times endpoint using adhan astronomical library
 app.get("/api/prayer-times", async (req: Request, res: Response) => {
   try {
     const cityKey = (req.query.city as string) || "Baki";
     const city = AZ_CITIES[cityKey] || AZ_CITIES.Baki;
-    const now = new Date();
+    const requestedDateStr = req.query.date as string;
+    const targetDate = requestedDateStr ? new Date(requestedDateStr) : new Date();
 
-    const baseTimes = getBaseBakuPrayerTimes(now);
-    const offset = city.offsetMinutes;
+    const methodName = (req.query.method as string) || "MuslimWorldLeague";
+    const madhabName = (req.query.madhab as string) || "shafi";
+
+    let params = CalculationMethod.MuslimWorldLeague();
+    if (methodName === "Turkey") {
+      params = CalculationMethod.Turkey();
+    } else if (methodName === "Tehran") {
+      params = CalculationMethod.Tehran();
+    } else if (methodName === "Karachi") {
+      params = CalculationMethod.Karachi();
+    } else if (methodName === "NorthAmerica") {
+      params = CalculationMethod.NorthAmerica();
+    } else if (methodName === "Egyptian") {
+      params = CalculationMethod.Egyptian();
+    } else if (methodName === "UmmAlQura") {
+      params = CalculationMethod.UmmAlQura();
+    }
+
+    params.madhab = madhabName === "hanafi" ? Madhab.Hanafi : Madhab.Shafi;
+    params.highLatitudeRule = HighLatitudeRule.SeventhOfTheNight;
+
+    const coordinates = new Coordinates(city.lat, city.lng);
+    const prayerTimes = new PrayerTimes(coordinates, targetDate, params);
+    const sunnahTimes = new SunnahTimes(prayerTimes);
+    const qiblaAngle = Math.round(Qibla(coordinates) * 10) / 10;
 
     const timings = {
-      fajr: formatMinutesToTime(baseTimes.fajr + offset),
-      sunrise: formatMinutesToTime(baseTimes.sunrise + offset),
-      dhuhr: formatMinutesToTime(baseTimes.dhuhr + offset),
-      asr: formatMinutesToTime(baseTimes.asr + offset),
-      maghrib: formatMinutesToTime(baseTimes.maghrib + offset),
-      isha: formatMinutesToTime(baseTimes.isha + offset),
+      fajr: formatTimeToBaku(prayerTimes.fajr),
+      sunrise: formatTimeToBaku(prayerTimes.sunrise),
+      dhuhr: formatTimeToBaku(prayerTimes.dhuhr),
+      asr: formatTimeToBaku(prayerTimes.asr),
+      maghrib: formatTimeToBaku(prayerTimes.maghrib),
+      isha: formatTimeToBaku(prayerTimes.isha),
+      midnight: formatTimeToBaku(sunnahTimes.middleOfTheNight),
+      tahajjud: formatTimeToBaku(sunnahTimes.lastThirdOfTheNight),
     };
 
     res.json({
       city: city.name,
       cityKey,
       coordinates: { lat: city.lat, lng: city.lng },
-      date: now.toISOString().split("T")[0],
+      date: getBakuDateStr(targetDate),
       timings,
-      source: "Qafqaz Müsəlmanları İdarəsi / Astronomik hesablama",
+      qiblaAngle,
+      calculationMethod: methodName,
+      madhab: madhabName,
+      source: "Astronomik hesablama · Adhan",
     });
   } catch (error) {
     console.error("Prayer times error:", error);
@@ -131,10 +193,22 @@ app.get("/api/prayer-times", async (req: Request, res: Response) => {
 // Nur AI religious chat assistant endpoint
 app.post("/api/gemini/religious-chat", async (req: Request, res: Response) => {
   try {
+    const clientIp = req.ip || req.socket.remoteAddress || "unknown";
+    if (!checkRateLimit(clientIp)) {
+      res.status(429).json({ error: "Həddindən artıq sorğu göndərildi. Zəhmət olmasa bir dəqiqə gözləyin." });
+      return;
+    }
+
     const { question, history } = req.body;
 
     if (!question || typeof question !== "string") {
       res.status(400).json({ error: "Sual mətni tələb olunur." });
+      return;
+    }
+
+    const trimmedQuestion = question.trim();
+    if (trimmedQuestion.length === 0 || trimmedQuestion.length > 1000) {
+      res.status(400).json({ error: "Sual mətni 1 ilə 1000 simvol arasında olmalıdır." });
       return;
     }
 
@@ -145,33 +219,39 @@ Sənin əsas məqsədin istifadəçilərə İslam dini, Quran ayələri, hədisl
 
 AŞAĞIDAKİ QAYDALARA QƏTİYYƏTLƏ ƏMƏL ET:
 1. Dini hökmü və ya fətvanı heç vaxt özündən uydurma.
-2. Cavabların Quran-i Kərim ayələrinə (surə və ayə nömrəsi ilə, məsələn: "əl-Bəqərə, 2:152") və səhih hədislərə (Buxari, Müslim, Tirmizi, Əbu Davud, Nəsai, İbn Macə və s.) əsaslansın.
-3. Fiqhi ixtilaflı məsələlərdə (məzhəb fərqlilikləri) heç bir məzhəbi pisləmədən Hənəfi, Şafii, Cəfəri, Maliki kimi mötəbər İslam məzhəblərinin mövqelərini obyektiv və ehtiramla qeyd et.
-4. Özünü alim, müctəhid və ya müfti kimi təqdim etmə. Sən sadəcə etibarlı mənbələrə istinad edən dini bələdçisən.
-5. Tibbi, cərrahi, hüquqi, məhkəmə və ya yüksək riskli şəxsi məsələlərdə istifadəçiyə mütləq ixtisaslı mütəxəssisə (həkim, hüquqşünas) və ya yerli rəsmi dini quruma (məsələn, Qafqaz Müsəlmanları İdarəsi) müraciət etməyi tövsiyə et.
-6. Əmin olmadığın və ya İslamda dəqiq cavabı olmayan məsələlərdə bunu açıq şəkildə bildir ("Bu məsələdə dəqiq səhih mətn qeyd olunmayıb və ya alimlər arasında ixtilaf var").
-7. Bütün cavabları təmiz, səlis və nəzakətli Azərbaycan dilində yaz.
-8. Hər cavabın sonunda mütləq "📌 Mənbələr və İstinadlar:" başlığı altında istifadə etdiyin surə, ayə və hədis mənbələrini qeyd et.`;
+2. Heç vaxt mövcud olmayan surə, ayə və ya uydurma hədis nömrəsi yaratma. Əgər konkret nömrədən əmin deyilsənsə, bunu açıq qeyd et və ya yalnız mənasını bildir.
+3. Cavabların Quran-i Kərim ayələrinə və səhih hədislərə (Buxari, Müslim, Tirmizi, Əbu Davud, Nəsai, İbn Macə və s.) əsaslansın.
+4. Fiqhi ixtilaflı məsələlərdə (məzhəb fərqlilikləri) heç bir məzhəbi tənqid etmədən Hənəfi, Şafii, Cəfəri, Maliki kimi mötəbər İslam məzhəblərinin mövqelərini obyektiv və ehtiramla qeyd et.
+5. Özünü alim, müctəhid və ya müfti kimi təqdim etmə. Sən sadəcə etibarlı mənbələrə istinad edən dini bələdçisən.
+6. Tibbi, cərrahi, hüquqi, məhkəmə və ya yüksək riskli şəxsi məsələlərdə istifadəçiyə mütləq ixtisaslı mütəxəssisə (həkim, hüquqşünas) və ya yerli rəsmi dini quruma (məsələn, Qafqaz Müsəlmanları İdarəsi) müraciət etməyi tövsiyə et.
+7. Əmin olmadığın və ya İslamda dəqiq cavabı olmayan məsələlərdə bunu açıq şəkildə bildir ("Bu məsələdə dəqiq səhih mətn qeyd olunmayıb və ya alimlər arasında fərqli rəylər var").
+8. Bütün cavabları təmiz, səlis və nəzakətli Azərbaycan dilində yaz.
+9. Hər cavabın sonunda mütləq "📌 Mənbələr və İstinadlar:" başlığı altında istifadə etdiyin surə, ayə və hədis mənbələrini qeyd et.
+10. Cavabın ən sonunda bu xəbərdarlıq qeydini əlavə et:
+"⚠️ Qeyd: Cavabda qeyd olunan istinadların (ayə və hədis nömrələrinin) dəqiqliyini mötəbər dini kitablardan və ya rəsmi mənbələrdən ayrıca yoxlamaq tövsiyə olunur."`;
 
-    const contents = history && Array.isArray(history) && history.length > 0
+    // Limit conversation history to latest 10 messages to prevent payload flooding
+    const safeHistory = Array.isArray(history) ? history.slice(-10) : [];
+
+    const contents = safeHistory.length > 0
       ? [
-          ...history.map((m: { role: string; text: string }) => ({
+          ...safeHistory.map((m: { role: string; text: string }) => ({
             role: m.role === "assistant" ? "model" : "user",
-            parts: [{ text: m.text }],
+            parts: [{ text: String(m.text || "").slice(0, 1500) }],
           })),
           {
             role: "user",
-            parts: [{ text: question }],
+            parts: [{ text: trimmedQuestion }],
           },
         ]
-      : question;
+      : trimmedQuestion;
 
     const response = await ai.models.generateContent({
       model: "gemini-3.8-flash",
       contents: contents,
       config: {
         systemInstruction,
-        temperature: 0.3, // Lower temperature for high factual accuracy in religious answers
+        temperature: 0.25, // Lower temperature for high factual accuracy in religious answers
       },
     });
 
@@ -180,10 +260,8 @@ AŞAĞIDAKİ QAYDALARA QƏTİYYƏTLƏ ƏMƏL ET:
     res.json({ reply });
   } catch (error: unknown) {
     console.error("Gemini religious-chat error:", error);
-    const errMsg = error instanceof Error ? error.message : "Bilinməyən xəta";
     res.status(500).json({
-      error: "Dini köməkçi ilə əlaqə qurarkən xəta baş verdi.",
-      details: errMsg,
+      error: "Dini köməkçi ilə əlaqə qurarkən xəta baş verdi. Zəhmət olmasa bir qədər sonra yenidən cəhd edin.",
     });
   }
 });

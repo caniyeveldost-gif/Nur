@@ -127,7 +127,7 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({ onClose }) => {
           </div>
 
           <div className="mt-4 p-3 rounded-xl bg-stone-100 dark:bg-emerald-950/30 text-[10px] text-stone-600 dark:text-stone-300 text-center leading-relaxed">
-            📌 Qeyd: Hicri təqvim ayı qəməri (yeni ayparanın görünməsi) müşahidəsinə əsaslanır. Yerli rəsmi tarixlər Qafqaz Müsəlmanları İdarəsinin (QMİ) fətva və elanları ilə tənzimlənir.
+            📌 Qeyd: Hicri təqvim qəməri (yeni ayparanın görünməsi) astronomik hesablamasına əsaslanır. Dini bayramların başlanğıcı yerli din qurumlarının rəsmi müşahidə və elanları ilə tənzimlənir.
           </div>
         </div>
       </div>

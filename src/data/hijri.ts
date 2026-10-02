@@ -93,7 +93,44 @@ export const HIJRI_MONTHS: HijriMonth[] = [
   },
 ];
 
-// Approximate Islamic date calculator using Umm al-Qura standard or Kuwaiti algorithm
+// Astronomical Gregorian-to-Hijri calculation algorithm (Kuwaiti algorithm)
+export function calculateAstronomicalHijri(date: Date): { day: number; month: number; year: number } {
+  const y = date.getFullYear();
+  const m = date.getMonth() + 1;
+  const day = date.getDate();
+
+  const a = Math.floor((14 - m) / 12);
+  const y_adj = y + 4800 - a;
+  const m_adj = m + 12 * a - 3;
+  const jd =
+    day +
+    Math.floor((153 * m_adj + 2) / 5) +
+    365 * y_adj +
+    Math.floor(y_adj / 4) -
+    Math.floor(y_adj / 100) +
+    Math.floor(y_adj / 400) -
+    32045;
+
+  let l = jd - 1948440 + 10632;
+  const n = Math.floor((l - 1) / 10631);
+  l = l - 10631 * n + 354;
+  const j =
+    Math.floor((10985 - l) / 5316) * Math.floor((50 * l) / 17719) +
+    Math.floor(l / 5670) * Math.floor((43 * l) / 15238);
+  l =
+    l -
+    Math.floor((30 - j) / 15) * Math.floor((17719 * j) / 50) -
+    Math.floor(j / 16) * Math.floor((15238 * j) / 43) +
+    29;
+
+  const month = Math.max(1, Math.min(12, Math.floor((24 * l) / 709)));
+  const hDay = Math.max(1, Math.min(30, l - Math.floor((709 * month) / 24)));
+  const year = 30 * n + j - 30;
+
+  return { day: hDay, month, year };
+}
+
+// Islamic date calculator using Intl islamic-umalqura standard with verified astronomical fallback
 export function getHijriDate(date: Date = new Date()): {
   day: number;
   monthIndex: number;
@@ -103,32 +140,35 @@ export function getHijriDate(date: Date = new Date()): {
   formatted: string;
   gregorianFormatted: string;
 } {
+  const monthsAz = [
+    "Yanvar", "Fevral", "Mart", "Aprel", "May", "İyun",
+    "İyul", "Avqust", "Sentyabr", "Oktyabr", "Noyabr", "Dekabr"
+  ];
+  const gregorianFormatted = `${date.getDate()} ${monthsAz[date.getMonth()]} ${date.getFullYear()}`;
+
   try {
-    // Native Intl DateTimeFormat with islamic-umalqura calendar
-    const formatter = new Intl.DateTimeFormat('az-u-ca-islamic-umalqura', {
+    // Primary System: Native Intl DateTimeFormat with islamic-umalqura calendar & Latin numerals
+    const formatter = new Intl.DateTimeFormat('az-u-ca-islamic-umalqura-nu-latn', {
       day: 'numeric',
       month: 'numeric',
-      year: 'numeric'
+      year: 'numeric',
     });
     const parts = formatter.formatToParts(date);
-    let day = 1;
-    let month = 1;
-    let year = 1448;
+    let day = NaN;
+    let month = NaN;
+    let year = NaN;
 
     for (const part of parts) {
-      if (part.type === 'day') day = parseInt(part.value, 10) || 1;
-      if (part.type === 'month') month = parseInt(part.value, 10) || 1;
-      if (part.type === 'year') year = parseInt(part.value, 10) || 1448;
+      if (part.type === 'day') day = parseInt(part.value, 10);
+      if (part.type === 'month') month = parseInt(part.value, 10);
+      if (part.type === 'year') year = parseInt(part.value, 10);
+    }
+
+    if (isNaN(day) || isNaN(month) || isNaN(year) || year < 1300) {
+      throw new Error('Intl Hijri parsing produced invalid numbers');
     }
 
     const monthObj = HIJRI_MONTHS[(month - 1 + 12) % 12];
-
-    const monthsAz = [
-      "Yanvar", "Fevral", "Mart", "Aprel", "May", "İyun",
-      "İyul", "Avqust", "Sentyabr", "Oktyabr", "Noyabr", "Dekabr"
-    ];
-
-    const gregorianFormatted = `${date.getDate()} ${monthsAz[date.getMonth()]} ${date.getFullYear()}`;
 
     return {
       day,
@@ -140,17 +180,18 @@ export function getHijriDate(date: Date = new Date()): {
       gregorianFormatted,
     };
   } catch (_e) {
-    // Fallback calculation
-    const gregorianYear = date.getFullYear();
-    const approxHijriYear = Math.round((gregorianYear - 622) * 1.030684);
+    // Verified astronomical fallback algorithm (used strictly when Intl islamic-umalqura is unavailable)
+    const { day, month, year } = calculateAstronomicalHijri(date);
+    const monthObj = HIJRI_MONTHS[(month - 1 + 12) % 12];
+
     return {
-      day: date.getDate(),
-      monthIndex: 2,
-      monthName: "Rəbiüləvvəl",
-      arabicMonthName: "رَبِيع الأَوَّل",
-      year: approxHijriYear,
-      formatted: `${date.getDate()} Rəbiüləvvəl ${approxHijriYear} H.`,
-      gregorianFormatted: date.toLocaleDateString('az-AZ'),
+      day,
+      monthIndex: month - 1,
+      monthName: monthObj.nameAz,
+      arabicMonthName: monthObj.arabicName,
+      year,
+      formatted: `${day} ${monthObj.nameAz} ${year} H.`,
+      gregorianFormatted,
     };
   }
 }

@@ -1,22 +1,36 @@
 import { Ayah, CityPrayerData } from '../types';
 import { PRELOADED_SURAHS, ALL_SURAHS } from '../data/surahs';
+import { getSurahFromIndexedDB, saveSurahToIndexedDB } from './quranDb';
+import {
+  Coordinates,
+  CalculationMethod,
+  PrayerTimes,
+  Madhab,
+  HighLatitudeRule,
+  SunnahTimes,
+  Qibla,
+} from 'adhan';
 
 // Azerbaijani cities with coordinates and calculated Qibla angles
-export const AZERBAIJAN_CITIES: Record<string, { name: string; lat: number; lng: number; offsetMinutes: number }> = {
-  Baki: { name: "Bakı", lat: 40.4093, lng: 49.8671, offsetMinutes: 0 },
-  Sumqayit: { name: "Sumqayıt", lat: 40.5897, lng: 49.6686, offsetMinutes: 1 },
-  Gence: { name: "Gəncə", lat: 40.6828, lng: 46.3606, offsetMinutes: 14 },
-  Lenkeran: { name: "Lənkəran", lat: 38.7529, lng: 48.8475, offsetMinutes: 4 },
-  Masalli: { name: "Masallı", lat: 39.0341, lng: 48.6654, offsetMinutes: 5 },
-  Astara: { name: "Astara", lat: 38.4559, lng: 48.8744, offsetMinutes: 4 },
-  Seki: { name: "Şəki", lat: 41.1919, lng: 47.1706, offsetMinutes: 11 },
-  Mingecevir: { name: "Mingəçevir", lat: 40.7703, lng: 47.0496, offsetMinutes: 11 },
-  Naxcivan: { name: "Naxçıvan", lat: 39.2089, lng: 45.4122, offsetMinutes: 18 },
-  Quba: { name: "Quba", lat: 41.3643, lng: 48.5134, offsetMinutes: 5 },
-  Samaxi: { name: "Şamaxı", lat: 40.6319, lng: 48.6414, offsetMinutes: 5 },
-  Susa: { name: "Şuşa", lat: 39.7588, lng: 46.7497, offsetMinutes: 13 },
-  Xankendi: { name: "Xankəndi", lat: 39.8265, lng: 46.7656, offsetMinutes: 13 },
-  Zaqatala: { name: "Zaqatala", lat: 41.6336, lng: 46.6433, offsetMinutes: 13 },
+// AUDIT NOTE: Manual city 'offsetMinutes' have been completely removed.
+// Adhan calculates precise solar prayer times directly from exact GPS latitude and longitude
+// (e.g. Gəncə 46.36°E vs Bakı 49.87°E). Adding manual offsets on top of astronomical coordinates
+// would produce double-offset errors.
+export const AZERBAIJAN_CITIES: Record<string, { name: string; lat: number; lng: number }> = {
+  Baki: { name: "Bakı", lat: 40.4093, lng: 49.8671 },
+  Sumqayit: { name: "Sumqayıt", lat: 40.5897, lng: 49.6686 },
+  Gence: { name: "Gəncə", lat: 40.6828, lng: 46.3606 },
+  Lenkeran: { name: "Lənkəran", lat: 38.7529, lng: 48.8475 },
+  Masalli: { name: "Masallı", lat: 39.0341, lng: 48.6654 },
+  Astara: { name: "Astara", lat: 38.4559, lng: 48.8744 },
+  Seki: { name: "Şəki", lat: 41.1919, lng: 47.1706 },
+  Mingecevir: { name: "Mingəçevir", lat: 40.7703, lng: 47.0496 },
+  Naxcivan: { name: "Naxçıvan", lat: 39.2089, lng: 45.4122 },
+  Quba: { name: "Quba", lat: 41.3643, lng: 48.5134 },
+  Samaxi: { name: "Şamaxı", lat: 40.6319, lng: 48.6414 },
+  Susa: { name: "Şuşa", lat: 39.7588, lng: 46.7497 },
+  Xankendi: { name: "Xankəndi", lat: 39.8265, lng: 46.7656 },
+  Zaqatala: { name: "Zaqatala", lat: 41.6336, lng: 46.6433 },
 };
 
 // Kaaba coordinates (Mecca)
@@ -53,33 +67,128 @@ export function calculateDistanceToKaaba(lat: number, lng: number): number {
   return Math.round(R * c);
 }
 
-// Local astronomical calculation for prayer times
-export function calculateLocalPrayerTimes(cityKey: string): CityPrayerData {
-  const city = AZERBAIJAN_CITIES[cityKey] || AZERBAIJAN_CITIES.Baki;
-  const now = new Date();
-  const dayOfYear = Math.floor(
-    (now.getTime() - new Date(now.getFullYear(), 0, 0).getTime()) / 1000 / 60 / 60 / 24
-  );
+// Convert a Date to YYYY-MM-DD specifically in Asia/Baku timezone (prevents UTC date shifts)
+export function getBakuDateString(date: Date = new Date()): string {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Baku',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const parts = formatter.formatToParts(date);
+    const y = parts.find((p) => p.type === 'year')?.value;
+    const m = parts.find((p) => p.type === 'month')?.value;
+    const d = parts.find((p) => p.type === 'day')?.value;
+    if (y && m && d) return `${y}-${m}-${d}`;
+  } catch (_e) {}
+  return date.toISOString().split('T')[0];
+}
 
-  const seasonSin = Math.sin(((dayOfYear - 80) * 2 * Math.PI) / 365);
-  const offset = city.offsetMinutes;
+// Helper to format adjustments into deterministic cache key string
+export function formatAdjustmentsCacheKey(adjustments: Record<string, number> = {}): string {
+  const keys = ['fajr', 'sunrise', 'dhuhr', 'asr', 'maghrib', 'isha'];
+  return keys.map((k) => `${k}${adjustments[k] || 0}`).join('_');
+}
 
-  const fajrMin = Math.round(330 - seasonSin * 70) + offset;
-  const sunriseMin = Math.round(415 - seasonSin * 65) + offset;
-  const dhuhrMin = 770 + offset;
-  const asrMin = Math.round(980 + seasonSin * 45) + offset;
-  const maghribMin = Math.round(1125 + seasonSin * 65) + offset;
-  const ishaMin = Math.round(1210 + seasonSin * 60) + offset;
+// Apply minute adjustment to a "HH:mm" time string
+export function applyAdjustmentToTimeString(timeStr: string, adjustmentMinutes: number = 0): string {
+  if (!timeStr || adjustmentMinutes === 0) return timeStr;
+  const [h, m] = timeStr.split(':').map(Number);
+  if (isNaN(h) || isNaN(m)) return timeStr;
+  const total = (h * 60 + m + adjustmentMinutes + 1440) % 1440;
+  const newH = Math.floor(total / 60).toString().padStart(2, '0');
+  const newM = (total % 60).toString().padStart(2, '0');
+  return `${newH}:${newM}`;
+}
 
-  const formatMin = (m: number) => {
-    const norm = (m + 1440) % 1440;
-    const h = Math.floor(norm / 60);
-    const min = norm % 60;
-    return `${h.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`;
+// Calculate Islamic midnight (Nisf al-Layl) and Tahajjud (Thuluth al-Layl al-Akhir)
+// derived directly from active Maghrib (sunset) and Fajr (dawn) times
+export function calculateSunnahNightTimes(maghribStr: string, fajrStr: string): { midnight: string; tahajjud: string } {
+  const [mH, mM] = (maghribStr || '18:00').split(':').map(Number);
+  const [fH, fM] = (fajrStr || '05:00').split(':').map(Number);
+  if (isNaN(mH) || isNaN(mM) || isNaN(fH) || isNaN(fM)) {
+    return { midnight: '23:45', tahajjud: '01:30' };
+  }
+  const maghribTotal = mH * 60 + mM;
+  const fajrTotal = fH * 60 + fM;
+  // Night duration in minutes across midnight
+  const nightDuration = (fajrTotal + 1440 - maghribTotal) % 1440;
+
+  // Middle of the night (Islamic midnight - Nisf al-Layl)
+  const midnightTotal = (maghribTotal + Math.round(nightDuration / 2)) % 1440;
+  const midH = Math.floor(midnightTotal / 60).toString().padStart(2, '0');
+  const midM = (midnightTotal % 60).toString().padStart(2, '0');
+
+  // Last third of the night (Tahajjud - Thuluth al-Layl al-Akhir)
+  const tahajjudTotal = (maghribTotal + Math.round((nightDuration * 2) / 3)) % 1440;
+  const tahH = Math.floor(tahajjudTotal / 60).toString().padStart(2, '0');
+  const tahM = (tahajjudTotal % 60).toString().padStart(2, '0');
+
+  return {
+    midnight: `${midH}:${midM}`,
+    tahajjud: `${tahH}:${tahM}`,
   };
+}
 
-  const qiblaAngle = calculateQiblaAngle(city.lat, city.lng);
+// Helper to format Date to HH:mm with optional minute adjustment in Asia/Baku timezone
+function formatTimeBaku(date: Date, adjustmentMinutes: number = 0): string {
+  const adjusted = new Date(date.getTime() + adjustmentMinutes * 60000);
+  try {
+    return adjusted.toLocaleTimeString("az-AZ", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Asia/Baku",
+      hour12: false,
+    });
+  } catch (_e) {
+    const h = adjusted.getHours().toString().padStart(2, "0");
+    const m = adjusted.getMinutes().toString().padStart(2, "0");
+    return `${h}:${m}`;
+  }
+}
+
+// Local astronomical calculation for prayer times using adhan
+export function calculateLocalPrayerTimes(
+  cityKey: string,
+  targetDate: Date = new Date(),
+  methodName: string = "MuslimWorldLeague",
+  madhabName: "shafi" | "hanafi" = "shafi",
+  adjustments: Record<string, number> = {}
+): CityPrayerData {
+  const city = AZERBAIJAN_CITIES[cityKey] || AZERBAIJAN_CITIES.Baki;
+
+  let params = CalculationMethod.MuslimWorldLeague();
+  if (methodName === "Turkey") {
+    params = CalculationMethod.Turkey();
+  } else if (methodName === "Tehran") {
+    params = CalculationMethod.Tehran();
+  } else if (methodName === "Karachi") {
+    params = CalculationMethod.Karachi();
+  } else if (methodName === "NorthAmerica") {
+    params = CalculationMethod.NorthAmerica();
+  } else if (methodName === "Egyptian") {
+    params = CalculationMethod.Egyptian();
+  } else if (methodName === "UmmAlQura") {
+    params = CalculationMethod.UmmAlQura();
+  }
+
+  params.madhab = madhabName === "hanafi" ? Madhab.Hanafi : Madhab.Shafi;
+  params.highLatitudeRule = HighLatitudeRule.SeventhOfTheNight;
+
+  const coordinates = new Coordinates(city.lat, city.lng);
+  const prayerTimes = new PrayerTimes(coordinates, targetDate, params);
+  const qiblaAngle = Math.round(Qibla(coordinates) * 10) / 10;
   const distanceToKaabaKm = calculateDistanceToKaaba(city.lat, city.lng);
+  const dateStr = getBakuDateString(targetDate);
+
+  const fajr = formatTimeBaku(prayerTimes.fajr, adjustments.fajr || 0);
+  const sunrise = formatTimeBaku(prayerTimes.sunrise, adjustments.sunrise || 0);
+  const dhuhr = formatTimeBaku(prayerTimes.dhuhr, adjustments.dhuhr || 0);
+  const asr = formatTimeBaku(prayerTimes.asr, adjustments.asr || 0);
+  const maghrib = formatTimeBaku(prayerTimes.maghrib, adjustments.maghrib || 0);
+  const isha = formatTimeBaku(prayerTimes.isha, adjustments.isha || 0);
+  const nightTimes = calculateSunnahNightTimes(maghrib, fajr);
 
   return {
     cityKey,
@@ -88,71 +197,149 @@ export function calculateLocalPrayerTimes(cityKey: string): CityPrayerData {
     lng: city.lng,
     qiblaAngle,
     distanceToKaabaKm,
+    date: dateStr,
+    calculationMethod: methodName,
+    madhab: madhabName,
+    source: "Astronomik hesablama · Adhan",
     timings: {
-      fajr: formatMin(fajrMin),
-      sunrise: formatMin(sunriseMin),
-      dhuhr: formatMin(dhuhrMin),
-      asr: formatMin(asrMin),
-      maghrib: formatMin(maghribMin),
-      isha: formatMin(ishaMin),
+      fajr,
+      sunrise,
+      dhuhr,
+      asr,
+      maghrib,
+      isha,
+      midnight: nightTimes.midnight,
+      tahajjud: nightTimes.tahajjud,
     },
   };
 }
 
-// Fetch prayer times from API or fallback
-export async function fetchPrayerTimes(cityKey: string): Promise<CityPrayerData> {
+// Fetch prayer times with full cache key incorporating all parameters, timeout, retry, and local astronomical fallback
+export async function fetchPrayerTimes(
+  cityKey: string,
+  targetDate: Date = new Date(),
+  methodName: string = "MuslimWorldLeague",
+  madhabName: "shafi" | "hanafi" = "shafi",
+  adjustments: Record<string, number> = {}
+): Promise<CityPrayerData> {
+  const dateStr = getBakuDateString(targetDate);
+  const adjKey = formatAdjustmentsCacheKey(adjustments);
+  const cacheKey = `nur_prayer_${cityKey}_${dateStr}_${methodName}_${madhabName}_${adjKey}`;
+
+  // Check localStorage cache first
   try {
-    const res = await fetch(`/api/prayer-times?city=${encodeURIComponent(cityKey)}`);
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed && parsed.timings && parsed.timings.fajr) {
+        return parsed;
+      }
+    }
+  } catch (_cacheErr) {}
+
+  // Try API with 3.5s timeout
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+    const url = `/api/prayer-times?city=${encodeURIComponent(cityKey)}&date=${dateStr}&method=${methodName}&madhab=${madhabName}`;
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
     if (res.ok) {
       const data = await res.json();
       const city = AZERBAIJAN_CITIES[cityKey] || AZERBAIJAN_CITIES.Baki;
-      return {
+      const result: CityPrayerData = {
         cityKey,
         cityName: data.city || city.name,
         lat: city.lat,
         lng: city.lng,
-        qiblaAngle: calculateQiblaAngle(city.lat, city.lng),
+        qiblaAngle: data.qiblaAngle ?? calculateQiblaAngle(city.lat, city.lng),
         distanceToKaabaKm: calculateDistanceToKaaba(city.lat, city.lng),
-        timings: data.timings,
+        date: data.date || dateStr,
+        calculationMethod: data.calculationMethod || methodName,
+        madhab: data.madhab || madhabName,
+        source: data.source || "Astronomik hesablama · Adhan",
+        timings: (() => {
+          const fajr = applyAdjustmentToTimeString(data.timings.fajr, adjustments.fajr || 0);
+          const sunrise = applyAdjustmentToTimeString(data.timings.sunrise, adjustments.sunrise || 0);
+          const dhuhr = applyAdjustmentToTimeString(data.timings.dhuhr, adjustments.dhuhr || 0);
+          const asr = applyAdjustmentToTimeString(data.timings.asr, adjustments.asr || 0);
+          const maghrib = applyAdjustmentToTimeString(data.timings.maghrib, adjustments.maghrib || 0);
+          const isha = applyAdjustmentToTimeString(data.timings.isha, adjustments.isha || 0);
+          const nightTimes = calculateSunnahNightTimes(maghrib, fajr);
+          return {
+            fajr,
+            sunrise,
+            dhuhr,
+            asr,
+            maghrib,
+            isha,
+            midnight: nightTimes.midnight,
+            tahajjud: nightTimes.tahajjud,
+          };
+        })(),
       };
+
+      // Save to localStorage for offline cache
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(result));
+      } catch (_e) {}
+
+      return result;
     }
-  } catch (e) {
-    console.warn("Backend prayer times route unavailable, using local astronomical calculation:", e);
+  } catch (_e) {
+    // Fall through to local calculation
   }
-  return calculateLocalPrayerTimes(cityKey);
+
+  // Pure client-side astronomical calculation fallback
+  const calculated = calculateLocalPrayerTimes(cityKey, targetDate, methodName, madhabName, adjustments);
+  try {
+    localStorage.setItem(cacheKey, JSON.stringify(calculated));
+  } catch (_e) {}
+  return calculated;
 }
 
 // In-memory cache for loaded Surahs
 const surahCache: Record<number, Ayah[]> = {};
 
-// Fetch Quran surah ayahs
+// Fetch Quran surah ayahs with IndexedDB offline support
 export async function fetchSurahAyahs(surahNumber: number): Promise<Ayah[]> {
-  // Check memory cache
+  // 1. Check in-memory cache
   if (surahCache[surahNumber]) {
     return surahCache[surahNumber];
   }
 
-  // Check preloaded collection
+  // 2. Check preloaded collection
   if (PRELOADED_SURAHS[surahNumber]) {
     surahCache[surahNumber] = PRELOADED_SURAHS[surahNumber];
     return PRELOADED_SURAHS[surahNumber];
   }
 
-  // Check persistent localStorage cache
+  // 3. Check persistent IndexedDB cache (no 5MB localStorage limits)
+  try {
+    const idbData = await getSurahFromIndexedDB(surahNumber);
+    if (idbData && idbData.length > 0) {
+      surahCache[surahNumber] = idbData;
+      return idbData;
+    }
+  } catch (_idbErr) {}
+
+  // 4. Check legacy localStorage cache
   try {
     const saved = localStorage.getItem(`nur_surah_cache_${surahNumber}`);
     if (saved) {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
         surahCache[surahNumber] = parsed;
+        // Migrate to IndexedDB in background
+        saveSurahToIndexedDB(surahNumber, parsed);
         return parsed;
       }
     }
-  } catch (_e) {
-    // Ignore storage parse error
-  }
+  } catch (_e) {}
 
-  // Attempt to fetch from public Quran Cloud API
+  // 5. Attempt to fetch from public Quran Cloud API
   try {
     const res = await fetch(`https://api.alquran.cloud/v1/surah/${surahNumber}/editions/quran-uthmani,az.mammadaliyev`);
     if (res.ok) {
@@ -169,9 +356,8 @@ export async function fetchSurahAyahs(surahNumber: number): Promise<Ayah[]> {
         }));
 
         surahCache[surahNumber] = ayahs;
-        try {
-          localStorage.setItem(`nur_surah_cache_${surahNumber}`, JSON.stringify(ayahs));
-        } catch (_storageErr) {}
+        // Save to IndexedDB
+        saveSurahToIndexedDB(surahNumber, ayahs);
         return ayahs;
       }
     }
@@ -179,7 +365,14 @@ export async function fetchSurahAyahs(surahNumber: number): Promise<Ayah[]> {
     console.warn(`Could not fetch online surah ${surahNumber}:`, err);
   }
 
-  // If offline or network error and no cache exists, throw descriptive error (do not fabricate fake Quran ayahs)
+  // If offline or network error, recheck IndexedDB just in case
+  const fallbackIdb = await getSurahFromIndexedDB(surahNumber);
+  if (fallbackIdb && fallbackIdb.length > 0) {
+    surahCache[surahNumber] = fallbackIdb;
+    return fallbackIdb;
+  }
+
+  // Throw descriptive error if no cache exists (never fabricate fake Quran ayahs)
   throw new Error("Surə ayələrini internetdən yükləmək mümkün olmadı. Zəhmət olmasa internet bağlantınızı yoxlayıb yenidən cəhd edin.");
 }
 

@@ -21,6 +21,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTab, onChangeTab }) 
       id="bottom-navigation-bar"
       aria-label="Əsas naviqasiya"
       className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-[#06150e]/95 backdrop-blur-md border-t border-emerald-950/10 dark:border-emerald-800/25 px-2 py-1.5 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]"
+      style={{ paddingBottom: 'calc(0.375rem + env(safe-area-inset-bottom, 0px))' }}
     >
       <div className="max-w-lg mx-auto flex items-center justify-around">
         {navItems.map((item) => {

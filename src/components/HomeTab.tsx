@@ -16,16 +16,18 @@ import {
   SunMedium,
   Sunset,
   Moon,
-  Volume2
+  Volume2,
+  Bell
 } from 'lucide-react';
 import { DAILY_AYAHS } from '../data/surahs';
 import { DAILY_DUA } from '../data/duas';
 import { DAILY_ZIKR } from '../data/zikrs';
-import { CityPrayerData } from '../types';
+import { CityPrayerData, NavigateTabFn } from '../types';
+import { getPrayerNotificationSettings } from '../services/notificationService';
 
 interface HomeTabProps {
   prayerData: CityPrayerData;
-  onNavigateTab: (tabId: string, subParam?: any) => void;
+  onNavigateTab: NavigateTabFn;
   onToggleBookmark: (item: { type: 'ayah' | 'dua' | 'zikr'; refId: string; title: string; subtitle: string; arabicText?: string }) => void;
   isBookmarked: (type: 'ayah' | 'dua' | 'zikr', refId: string) => boolean;
   onOpenPrayerModal: () => void;
@@ -74,7 +76,20 @@ export const HomeTab: React.FC<HomeTabProps> = ({
   useEffect(() => {
     const calculateNextPrayer = () => {
       const now = new Date();
-      const currentMinutes = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+      let currentMinutes = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+      try {
+        const bakuTimeStr = now.toLocaleTimeString('az-AZ', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          timeZone: 'Asia/Baku',
+          hour12: false,
+        });
+        const [bH, bM, bS] = bakuTimeStr.split(':').map(Number);
+        if (!isNaN(bH) && !isNaN(bM)) {
+          currentMinutes = bH * 60 + bM + (bS || 0) / 60;
+        }
+      } catch (_e) {}
 
       const prayerSchedule = [
         { key: 'fajr', nameAz: 'Sübh', arabicName: 'الفجر', timeStr: prayerData.timings.fajr },
@@ -173,7 +188,15 @@ export const HomeTab: React.FC<HomeTabProps> = ({
             </p>
           </div>
 
-          <div className="text-right">
+          <div className="text-right flex flex-col items-end">
+            <button
+              onClick={onOpenPrayerModal}
+              title="Gündəlik namaz bildirişləri (Sübh & Məğrib)"
+              className="mb-1.5 p-1.5 rounded-lg bg-emerald-900/60 hover:bg-emerald-800/80 border border-emerald-600/40 text-amber-300 transition flex items-center gap-1 text-[10px] font-semibold"
+            >
+              <Bell className="w-3.5 h-3.5" />
+              <span>{getPrayerNotificationSettings().enabled ? 'Bildirişlər ✓' : 'Bildirişlər'}</span>
+            </button>
             <div className="text-[11px] font-medium text-emerald-200/80">Qalan vaxt</div>
             <div className="text-2xl font-mono font-bold text-amber-300 tracking-wider">
               {nextPrayerInfo.remainingStr}

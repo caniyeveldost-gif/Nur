@@ -1,17 +1,68 @@
 {
   "name": "Nur - Müasir Dini Bələdçi",
   "short_name": "Nur",
-  "description": "Azərbaycan dilində müasir və etibarlı dini web tətbiq",
+  "description": "Azərbaycan dilində müasir və etibarlı dini web tətbiq: Namaz vaxtları, Quran-i Kərim, dualar, təsbeh və Qiblə",
   "start_url": "/",
+  "id": "/",
   "display": "standalone",
   "background_color": "#064e3b",
   "theme_color": "#064e3b",
   "orientation": "portrait-primary",
+  "categories": ["lifestyle", "utilities", "books"],
   "icons": [
     {
       "src": "/icon.svg",
-      "sizes": "192x192 512x512",
-      "type": "image/svg+xml"
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Namaz Vaxtları",
+      "short_name": "Namaz",
+      "description": "Dəqiq namaz vaxtları və qalan vaxt",
+      "url": "/?tab=home",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Quran-i Kərim",
+      "short_name": "Quran",
+      "description": "114 surə, ərəb mətni və Azərbaycan tərcüməsi",
+      "url": "/?tab=quran",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Qiblə Kompası",
+      "short_name": "Qiblə",
+      "description": "Kəbə istiqaməti və kompas dərəcəsi",
+      "url": "/?tab=qibla",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Zikr və Təsbeh",
+      "short_name": "Təsbeh",
+      "description": "Elektron təsbeh və gündəlik zikrlər",
+      "url": "/?tab=zikr",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

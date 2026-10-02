@@ -3,10 +3,11 @@ import { X, Search, BookOpen, HeartHandshake, Hash, ArrowRight } from 'lucide-re
 import { ALL_SURAHS } from '../data/surahs';
 import { ALL_DUAS } from '../data/duas';
 import { POPULAR_ZIKRS } from '../data/zikrs';
+import { NavigateTabFn } from '../types';
 
 interface SearchModalProps {
   onClose: () => void;
-  onNavigateTab: (tabId: string, subParam?: any) => void;
+  onNavigateTab: NavigateTabFn;
 }
 
 export const SearchModal: React.FC<SearchModalProps> = ({ onClose, onNavigateTab }) => {

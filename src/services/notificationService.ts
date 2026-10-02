@@ -1,4 +1,5 @@
 import { CityPrayerData } from '../types';
+import { getBakuDateString } from './apiService';
 
 export interface PrayerNotificationSettings {
   enabled: boolean;
@@ -139,10 +140,16 @@ export async function dispatchNotification(title: string, body: string, tag: str
     playNotificationChime();
   }
 
+  if (typeof navigator !== 'undefined' && navigator.vibrate) {
+    try {
+      navigator.vibrate([200, 100, 200, 100, 200]);
+    } catch (_vErr) {}
+  }
+
   const options: NotificationOptions & { renotify?: boolean } = {
     body,
-    icon: '/icon.svg',
-    badge: '/icon.svg',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
     tag,
     renotify: true,
   };
@@ -283,11 +290,8 @@ export function getNextPrayerNotificationInfo(prayerData: CityPrayerData): NextS
   };
 }
 
-// Master scheduling function for daily push notifications
-export function scheduleDailyPrayerNotifications(prayerData: CityPrayerData): void {
-  if (typeof window === 'undefined') return;
-
-  // Clear existing timers and interval
+// Clear and cancel all scheduled prayer notifications
+export function cancelDailyPrayerNotifications(): void {
   activeTimeouts.forEach((t) => clearTimeout(t));
   activeTimeouts = [];
 
@@ -295,6 +299,14 @@ export function scheduleDailyPrayerNotifications(prayerData: CityPrayerData): vo
     clearInterval(activeCheckInterval);
     activeCheckInterval = null;
   }
+}
+
+// Master scheduling function for daily notifications
+export function scheduleDailyPrayerNotifications(prayerData: CityPrayerData): void {
+  if (typeof window === 'undefined') return;
+
+  // Clear existing timers and interval
+  cancelDailyPrayerNotifications();
 
   const settings = getPrayerNotificationSettings();
   if (!settings.enabled || Notification.permission !== 'granted') {
@@ -308,7 +320,7 @@ export function scheduleDailyPrayerNotifications(prayerData: CityPrayerData): vo
 
   // Notification dispatch helper with idempotency check per day
   const triggerPrayerNotification = (prayerKey: 'fajr' | 'maghrib' | 'dhuhr' | 'asr' | 'isha', prayerTime: string) => {
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = getBakuDateString(new Date());
     const sentKey = `nur_sent_prayer_${prayerKey}_${todayStr}`;
 
     if (localStorage.getItem(sentKey)) {
