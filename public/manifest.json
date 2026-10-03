@@ -39,7 +39,7 @@
     {
       "name": "Namaz Vaxtları",
       "short_name": "Namaz",
-      "description": "Dəqiq namaz vaxtları və qalan vaxt",
+      "description": "Astronomik namaz vaxtları və qalan vaxt",
       "url": "/?tab=home",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },

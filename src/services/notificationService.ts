@@ -301,12 +301,37 @@ export function cancelDailyPrayerNotifications(): void {
   }
 }
 
+// Clean up notification idempotency records older than 7 days to prevent localStorage bloat
+export function cleanOldNotificationHistory(): void {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    const now = Date.now();
+    const maxAgeMs = 7 * 24 * 60 * 60 * 1000; // 7 days
+    const keysToRemove: string[] = [];
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('nur_sent_prayer_')) {
+        const val = localStorage.getItem(key);
+        const timestamp = val ? parseInt(val, 10) : 0;
+        if (!timestamp || isNaN(timestamp) || now - timestamp > maxAgeMs) {
+          keysToRemove.push(key);
+        }
+      }
+    }
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
+  } catch (_e) {}
+}
+
 // Master scheduling function for daily notifications
 export function scheduleDailyPrayerNotifications(prayerData: CityPrayerData): void {
   if (typeof window === 'undefined') return;
 
   // Clear existing timers and interval
   cancelDailyPrayerNotifications();
+
+  // Prune expired idempotency history (older than 7 days)
+  cleanOldNotificationHistory();
 
   const settings = getPrayerNotificationSettings();
   if (!settings.enabled || Notification.permission !== 'granted') {
@@ -318,13 +343,25 @@ export function scheduleDailyPrayerNotifications(prayerData: CityPrayerData): vo
 
   const cityName = prayerData.cityName;
 
-  // Notification dispatch helper with idempotency check per day
+  // Notification dispatch helper with rich idempotency check (city, date, prayer, time, method, madhab, offset)
   const triggerPrayerNotification = (prayerKey: 'fajr' | 'maghrib' | 'dhuhr' | 'asr' | 'isha', prayerTime: string) => {
     const todayStr = getBakuDateString(new Date());
-    const sentKey = `nur_sent_prayer_${prayerKey}_${todayStr}`;
+
+    // Guard against date rollover: ensure prayerData belongs to today
+    if (prayerData.date && prayerData.date !== todayStr) {
+      return;
+    }
+
+    const cityKey = prayerData.cityKey || 'Baki';
+    const method = prayerData.calculationMethod || 'MWL';
+    const madhab = prayerData.madhab || 'shafi';
+    const offset = settings.offsetMinutes || 0;
+    const timeClean = prayerTime.replace(':', '');
+
+    const sentKey = `nur_sent_prayer_${cityKey}_${todayStr}_${prayerKey}_${timeClean}_${method}_${madhab}_off${offset}`;
 
     if (localStorage.getItem(sentKey)) {
-      return; // Already sent today
+      return; // Already dispatched for this exact schedule
     }
 
     let title = '';
@@ -347,7 +384,7 @@ export function scheduleDailyPrayerNotifications(prayerData: CityPrayerData): vo
       body = `${cityName} üçün İşa namazının vaxtı (${prayerTime}) daxil oldu.`;
     }
 
-    const tag = `prayer-${prayerKey}-${todayStr}`;
+    const tag = `prayer-${cityKey}-${todayStr}-${prayerKey}-${timeClean}`;
     dispatchNotification(title, body, tag);
     try {
       localStorage.setItem(sentKey, Date.now().toString());

@@ -167,7 +167,7 @@ export const QuranTab: React.FC<QuranTabProps> = ({
     } catch (e) {
       console.error('Error loading surah:', e);
       if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        setLoadError('Bu surə hazırda offline yaddaşda yoxdur. İnternet bağlantısı bərpa olunduqda surə avtomatik yüklənəcək və offline yaddaşa qeyd olunacaq.');
+        setLoadError('Bu surə offline yaddaşda yoxdur. İnternet bağlantısı yaradaraq surəni bir dəfə açın.');
       } else {
         setLoadError('Ayələri yükləmək mümkün olmadı. Zəhmət olmasa internet bağlantınızı yoxlayıb yenidən cəhd edin.');
       }

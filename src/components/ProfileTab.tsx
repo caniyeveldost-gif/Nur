@@ -40,32 +40,32 @@ interface ProfileTabProps {
 
 const CALC_METHODS_INFO: Record<string, { label: string; desc: string }> = {
   MuslimWorldLeague: {
-    label: 'Dünya Müsəlman Liqası (MWL)',
-    desc: 'Fəcr 18°, İşa 17°. Avropa və Qafqazda geniş istifadə olunan beynəlxalq standart.',
+    label: 'Muslim World League (MWL)',
+    desc: 'Fəcr 18°, İşa 17°',
   },
   Turkey: {
-    label: 'Diyanət İşləri Başqanlığı (Türkiyə / Qafqaz)',
-    desc: 'Fəcr 18°, İşa 17°. Qafqaz və Türkiyə regionu üçün tənzimlənmiş dərəcələr.',
+    label: 'Diyanət (Türkiyə)',
+    desc: 'Fəcr 18°, İşa 17°',
   },
   Tehran: {
-    label: 'Tehran Universiteti (Geofizika)',
-    desc: 'Fəcr 17.7°, Məğrib 4.5°, İşa 14°. Cəfəri fiqhinə əsaslanan elmi hesablama.',
+    label: 'Tehran Universiteti Geofizika İnstitutu',
+    desc: 'Fəcr 17.7°, Məğrib 4.5°, İşa 14°',
   },
   Karachi: {
     label: 'İslam Elmləri Universiteti (Kəraçi)',
-    desc: 'Fəcr 18°, İşa 18°. Cənubi Asiya və qonşu Hənəfi regionları üçün.',
+    desc: 'Fəcr 18°, İşa 18°',
   },
   NorthAmerica: {
     label: 'İSNA (Şimali Amerika)',
-    desc: 'Fəcr 15°, İşa 15°. Şimali Amerika standartı.',
+    desc: 'Fəcr 15°, İşa 15°',
   },
   Egyptian: {
     label: 'Misir Baş Tədqiqat İdarəsi',
-    desc: 'Fəcr 19.5°, İşa 17.5°. Şimali Afrika və Yaxın Şərq üçün.',
+    desc: 'Fəcr 19.5°, İşa 17.5°',
   },
   UmmAlQura: {
-    label: 'Ümmül-Qura (Məkkə)',
-    desc: 'Fəcr 18.5°, İşa: Məğribdən 90 dəqiqə sonra. Səudiyyə Ərəbistanı rəsmi standartı.',
+    label: 'Ümmül-Qura Universiteti (Məkkə)',
+    desc: 'Fəcr 18.5°, İşa: Məğrib + 90 dəqiqə',
   },
 };
 
@@ -228,13 +228,13 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
               onChange={(e) => onUpdateSettings({ prayerCalcMethod: e.target.value as PrayerCalculationMethod })}
               className="px-2.5 py-1.5 rounded-xl bg-stone-50 dark:bg-emerald-950/40 border border-stone-300 dark:border-emerald-800 text-xs font-bold text-emerald-900 dark:text-amber-300 focus:outline-none cursor-pointer max-w-[170px] truncate"
             >
-              <option value="MuslimWorldLeague">Dünya Müsəlman Liqası (Tövsiyə)</option>
-              <option value="Turkey">Diyanət / Qafqaz Regionu</option>
-              <option value="Tehran">Tehran Universiteti (Geofizika)</option>
-              <option value="Karachi">İslam Elmləri Universiteti (Kəraçi)</option>
+              <option value="MuslimWorldLeague">Muslim World League (MWL)</option>
+              <option value="Turkey">Diyanət (Türkiyə)</option>
+              <option value="Tehran">Tehran Universiteti</option>
+              <option value="Karachi">Kəraçi Universiteti</option>
               <option value="NorthAmerica">İSNA (Şimali Amerika)</option>
               <option value="Egyptian">Misir Baş Tədqiqat İdarəsi</option>
-              <option value="UmmAlQura">Ümmül-Qura (Məkkə)</option>
+              <option value="UmmAlQura">Ümmül-Qura Universiteti</option>
             </select>
           </div>
 

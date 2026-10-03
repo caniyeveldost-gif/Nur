@@ -101,7 +101,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             </h3>
 
             <p className="text-xs text-stone-600 dark:text-stone-300 leading-relaxed px-2">
-              Azərbaycan dilində ən müasir və zəngin İslam bələdçisi: Dəqiq astronomik namaz vaxtları, Qurani-Kərim oxucusu və qiraəti, Hisnul-Muslim duaları, elektron təsbeh, qiblə kompas və Nur AI köməkçi.
+              Azərbaycan dilində ən müasir və zəngin İslam bələdçisi: Astronomik hesablanmış namaz vaxtları, Qurani-Kərim oxucusu və qiraəti, Hisnul-Muslim duaları, elektron təsbeh, qiblə kompas və Nur AI köməkçi.
             </p>
 
             <div className="p-3 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/40 border border-emerald-900/10 dark:border-emerald-800/30 text-xs text-emerald-900 dark:text-amber-300 font-medium">
@@ -169,7 +169,10 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 
             <div className="p-4 rounded-2xl bg-stone-50 dark:bg-emerald-950/40 border border-stone-200 dark:border-emerald-900/40 space-y-3">
               <p className="text-xs text-stone-700 dark:text-stone-300 leading-relaxed">
-                Tətbiq brauzerinizin standart Notification API və Service Worker sistemi vasitəsilə etibarlı xatırlatmalar göndərir.
+                Tətbiq brauzerinizin standart Notification API və Service Worker sistemi vasitəsilə cihazdaxili namaz xatırlatmaları göndərir.
+              </p>
+              <p className="text-[11px] text-stone-500 dark:text-stone-400 leading-relaxed">
+                Bildirişlərin işləməsi brauzer və cihazın fon fəaliyyəti məhdudiyyətlərindən asılı ola bilər.
               </p>
 
               <button
