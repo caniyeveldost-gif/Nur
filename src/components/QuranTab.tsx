@@ -20,8 +20,10 @@ import {
   SlidersHorizontal,
   Layers
 } from 'lucide-react';
-import { ALL_SURAHS } from '../data/surahs';
+import { ALL_SURAHS, PRELOADED_SURAHS } from '../data/surahs';
 import { fetchSurahAyahs } from '../services/apiService';
+import { getCachedSurahNumbers } from '../services/quranDb';
+import { safeStorage } from '../services/storageHelper';
 import { Surah, Ayah, LastRead } from '../types';
 
 interface QuranTabProps {
@@ -32,35 +34,13 @@ interface QuranTabProps {
   globalFontSize: 'small' | 'medium' | 'large' | 'xlarge';
 }
 
-// Helper to determine approximate Juz for each Surah
-function getSurahJuz(num: number): number {
-  if (num <= 1) return 1;
-  if (num === 2) return 1; // spans 1-3
-  if (num === 3) return 3;
-  if (num === 4) return 4;
-  if (num === 5) return 6;
-  if (num === 6) return 7;
-  if (num === 7) return 8;
-  if (num === 8) return 9;
-  if (num === 9) return 10;
-  if (num <= 11) return 11;
-  if (num <= 13) return 12;
-  if (num <= 15) return 13;
-  if (num <= 17) return 14;
-  if (num <= 19) return 15;
-  if (num <= 21) return 16;
-  if (num <= 24) return 18;
-  if (num <= 27) return 19;
-  if (num <= 29) return 20;
-  if (num <= 33) return 21;
-  if (num <= 36) return 22;
-  if (num <= 39) return 23;
-  if (num <= 45) return 24;
-  if (num <= 51) return 26;
-  if (num <= 57) return 27;
-  if (num <= 66) return 28;
-  if (num <= 77) return 29;
-  return 30; // Juz Amma
+// Helper for Azerbaijani case-insensitive search (handles İ/i, I/ı, Ə/ə, Ö/ö, Ü/ü, Ş/ş, Ç/ç, Ğ/ğ)
+function toAzLower(str: string): string {
+  try {
+    return str.toLocaleLowerCase('az').normalize('NFC');
+  } catch (_e) {
+    return str.toLowerCase();
+  }
 }
 
 export const QuranTab: React.FC<QuranTabProps> = ({
@@ -88,21 +68,32 @@ export const QuranTab: React.FC<QuranTabProps> = ({
   const [isReaderSettingsOpen, setIsReaderSettingsOpen] = useState<boolean>(false);
 
   // Last read persistence
-  const [lastRead, setLastRead] = useState<LastRead | null>(() => {
-    try {
-      const saved = localStorage.getItem('nur_last_read_quran');
-      return saved ? JSON.parse(saved) : null;
-    } catch (_e) {
-      return null;
-    }
-  });
+  const [lastRead, setLastRead] = useState<LastRead | null>(() =>
+    safeStorage.getItem<LastRead | null>('nur_last_read_quran', null)
+  );
 
   const [copiedAyahNumber, setCopiedAyahNumber] = useState<number | null>(null);
   const [sharedAyahNumber, setSharedAyahNumber] = useState<number | null>(null);
   const [playingAyah, setPlayingAyah] = useState<number | null>(null);
   const [audioErrorMsg, setAudioErrorMsg] = useState<string | null>(null);
+  const [cachedSurahs, setCachedSurahs] = useState<Set<number>>(
+    () => new Set(Object.keys(PRELOADED_SURAHS).map(Number))
+  );
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Sync cached surah numbers from IndexedDB
+  useEffect(() => {
+    getCachedSurahNumbers()
+      .then((nums) => {
+        setCachedSurahs((prev) => {
+          const next = new Set(prev);
+          nums.forEach((n) => next.add(n));
+          return next;
+        });
+      })
+      .catch(() => {});
+  }, []);
 
   // Initial navigation
   useEffect(() => {
@@ -114,21 +105,25 @@ export const QuranTab: React.FC<QuranTabProps> = ({
     }
   }, [initialSurahNumber, initialAyahNumber]);
 
+  const cleanupAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.onended = null;
+      audioRef.current.onerror = null;
+      audioRef.current.pause();
+      audioRef.current.src = '';
+    }
+  };
+
   // Cleanup audio on unmount
   useEffect(() => {
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.src = '';
-      }
+      cleanupAudio();
     };
   }, []);
 
   const handleSelectSurah = async (surah: Surah, startAyah?: number) => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      setPlayingAyah(null);
-    }
+    cleanupAudio();
+    setPlayingAyah(null);
     setSelectedSurah(surah);
     setLoadingAyahs(true);
     setLoadError(null);
@@ -138,6 +133,11 @@ export const QuranTab: React.FC<QuranTabProps> = ({
     try {
       const data = await fetchSurahAyahs(surah.number);
       setAyahs(data);
+      setCachedSurahs((prev) => {
+        const next = new Set(prev);
+        next.add(surah.number);
+        return next;
+      });
 
       // Save as last read
       const newLastRead: LastRead = {
@@ -147,9 +147,7 @@ export const QuranTab: React.FC<QuranTabProps> = ({
         timestamp: new Date().toISOString(),
       };
       setLastRead(newLastRead);
-      try {
-        localStorage.setItem('nur_last_read_quran', JSON.stringify(newLastRead));
-      } catch (_e) {}
+      safeStorage.setItem('nur_last_read_quran', newLastRead);
 
       // Scroll to startAyah if specified
       if (startAyah) {
@@ -166,21 +164,15 @@ export const QuranTab: React.FC<QuranTabProps> = ({
       }
     } catch (e) {
       console.error('Error loading surah:', e);
-      if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        setLoadError('Bu surə offline yaddaşda yoxdur. İnternet bağlantısı yaradaraq surəni bir dəfə açın.');
-      } else {
-        setLoadError('Ayələri yükləmək mümkün olmadı. Zəhmət olmasa internet bağlantınızı yoxlayıb yenidən cəhd edin.');
-      }
+      setLoadError('Bu surə hazırda offline saxlanılmayıb. İnternetə qoşulduqda surəni bir dəfə açın.');
     } finally {
       setLoadingAyahs(false);
     }
   };
 
   const handleBackToList = () => {
-    if (audioRef.current) {
-      audioRef.current.pause();
-      setPlayingAyah(null);
-    }
+    cleanupAudio();
+    setPlayingAyah(null);
     setSelectedSurah(null);
     setAyahs([]);
     setLoadError(null);
@@ -234,8 +226,13 @@ export const QuranTab: React.FC<QuranTabProps> = ({
       }
     }
 
-    if (audioRef.current) {
-      audioRef.current.pause();
+    cleanupAudio();
+
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setPlayingAyah(null);
+      setAudioErrorMsg('Qiraət bağlantısı əlçatmazdır (onlayn qiraət üçün internet tələb olunur).');
+      setTimeout(() => setAudioErrorMsg(null), 3500);
+      return;
     }
 
     const sPad = surahNumber.toString().padStart(3, '0');
@@ -246,6 +243,12 @@ export const QuranTab: React.FC<QuranTabProps> = ({
       const audio = new Audio(url);
       audio.playbackRate = playbackSpeed;
       audioRef.current = audio;
+
+      audio.onerror = () => {
+        setPlayingAyah(null);
+        setAudioErrorMsg('Qiraət bağlantısı əlçatmazdır.');
+        setTimeout(() => setAudioErrorMsg(null), 3000);
+      };
 
       audio.play().catch((err) => {
         console.warn('Audio play error:', err);
@@ -281,11 +284,13 @@ export const QuranTab: React.FC<QuranTabProps> = ({
     }
   };
 
-  // Filtering surahs in list view
+  // Filtering surahs in list view (Azerbaijani locale-aware)
   const filteredSurahs = ALL_SURAHS.filter((surah) => {
+    const q = toAzLower(searchQuery.trim());
     const matchesSearch =
-      surah.transliteration.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      surah.translation.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      !q ||
+      toAzLower(surah.transliteration).includes(q) ||
+      toAzLower(surah.translation).includes(q) ||
       surah.name.includes(searchQuery.trim()) ||
       surah.number.toString() === searchQuery.trim();
 
@@ -293,13 +298,13 @@ export const QuranTab: React.FC<QuranTabProps> = ({
     return matchesSearch && matchesFilter;
   });
 
-  // Filtering ayahs inside open surah
+  // Filtering ayahs inside open surah (Azerbaijani locale-aware)
   const filteredAyahs = ayahs.filter((ayah) => {
     if (!ayahSearchQuery) return true;
-    const q = ayahSearchQuery.toLowerCase().trim();
+    const q = toAzLower(ayahSearchQuery.trim());
     return (
-      ayah.translation.toLowerCase().includes(q) ||
-      ayah.arabic.includes(q) ||
+      toAzLower(ayah.translation).includes(q) ||
+      ayah.arabic.includes(ayahSearchQuery.trim()) ||
       ayah.numberInSurah.toString() === q
     );
   });
@@ -368,7 +373,7 @@ export const QuranTab: React.FC<QuranTabProps> = ({
                 <span className="font-arabic text-amber-500 font-bold hidden xs:inline">({selectedSurah.name})</span>
               </h3>
               <div className="text-[10px] text-stone-500 dark:text-stone-400">
-                {selectedSurah.totalAyahs} ayə • {selectedSurah.revelationType} • Cüz {getSurahJuz(selectedSurah.number)}
+                {selectedSurah.totalAyahs} ayə • {selectedSurah.revelationType}
               </div>
             </div>
 
@@ -720,7 +725,7 @@ export const QuranTab: React.FC<QuranTabProps> = ({
                 <span>Qurani-Kərim</span>
               </h2>
               <p className="text-xs text-stone-600 dark:text-stone-300">
-                114 Surə • 30 Cüz • Ərəbcə Uthmani mətni və Azərbaycan dilində tərcüməsi
+                114 Surə • 30 Cüz • {cachedSurahs.size} surə offline saxlanılıb (açılan surələr avtomatik yadda saxlanılır)
               </p>
             </div>
           </div>
@@ -814,8 +819,6 @@ export const QuranTab: React.FC<QuranTabProps> = ({
           {/* 114 Surahs Grid List */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             {filteredSurahs.map((surah) => {
-              const juzNum = getSurahJuz(surah.number);
-
               return (
                 <button
                   key={surah.number}
@@ -840,10 +843,11 @@ export const QuranTab: React.FC<QuranTabProps> = ({
                         <span>{surah.totalAyahs} ayə</span>
                         <span>•</span>
                         <span>{surah.revelationType}</span>
-                        <span>•</span>
-                        <span className="px-1.5 py-0.2 rounded-md bg-stone-100 dark:bg-emerald-950/60 text-stone-600 dark:text-stone-300">
-                          Cüz {juzNum}
-                        </span>
+                        {cachedSurahs.has(surah.number) && (
+                          <span className="px-1.5 py-0.2 rounded-md bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-amber-300 font-semibold">
+                            Offline
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>

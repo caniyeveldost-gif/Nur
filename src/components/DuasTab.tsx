@@ -65,13 +65,23 @@ export const DuasTab: React.FC<DuasTabProps> = ({ initialDuaId, onToggleBookmark
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const toAzLower = (str: string): string => {
+    try {
+      return str.toLocaleLowerCase('az').normalize('NFC');
+    } catch (_e) {
+      return str.toLowerCase();
+    }
+  };
+
   const filteredDuas = ALL_DUAS.filter((dua) => {
     const matchesCategory = selectedCategory === 'all' || dua.categoryId === selectedCategory;
+    const q = toAzLower(searchQuery.trim());
     const matchesSearch =
-      dua.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      dua.transliteration.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      dua.translation.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      dua.source.toLowerCase().includes(searchQuery.toLowerCase());
+      !q ||
+      toAzLower(dua.title).includes(q) ||
+      toAzLower(dua.transliteration).includes(q) ||
+      toAzLower(dua.translation).includes(q) ||
+      toAzLower(dua.source).includes(q);
     return matchesCategory && matchesSearch;
   });
 

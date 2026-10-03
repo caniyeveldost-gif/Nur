@@ -44,7 +44,7 @@ const CALC_METHODS_INFO: Record<string, { label: string; desc: string }> = {
     desc: 'Fəcr 18°, İşa 17°',
   },
   Turkey: {
-    label: 'Diyanət (Türkiyə)',
+    label: 'Turkey (Adhan parametrləri)',
     desc: 'Fəcr 18°, İşa 17°',
   },
   Tehran: {
@@ -229,7 +229,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
               className="px-2.5 py-1.5 rounded-xl bg-stone-50 dark:bg-emerald-950/40 border border-stone-300 dark:border-emerald-800 text-xs font-bold text-emerald-900 dark:text-amber-300 focus:outline-none cursor-pointer max-w-[170px] truncate"
             >
               <option value="MuslimWorldLeague">Muslim World League (MWL)</option>
-              <option value="Turkey">Diyanət (Türkiyə)</option>
+              <option value="Turkey">Turkey (Adhan parametrləri)</option>
               <option value="Tehran">Tehran Universiteti</option>
               <option value="Karachi">Kəraçi Universiteti</option>
               <option value="NorthAmerica">İSNA (Şimali Amerika)</option>
@@ -412,14 +412,14 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
           </button>
         </div>
 
-        {/* Daily Push Notifications for Fajr and Maghrib */}
+        {/* Local Device Prayer Reminders for Fajr and Maghrib */}
         {onOpenPrayerModal && (
           <div className="flex items-center justify-between pb-3 border-b border-stone-100 dark:border-emerald-900/30">
             <div className="flex items-center gap-2 text-xs font-semibold text-stone-700 dark:text-stone-300">
               <Bell className="w-4 h-4 text-amber-500" />
               <div>
                 <div className="flex items-center gap-1.5">
-                  <span>Namaz Bildirişləri (Cihazdaxili):</span>
+                  <span>Cihazdaxili namaz xatırlatmaları:</span>
                   <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
                     getPrayerNotificationSettings().enabled
                       ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-amber-300'
@@ -429,7 +429,7 @@ export const ProfileTab: React.FC<ProfileTabProps> = ({
                   </span>
                 </div>
                 <div className="text-[10px] text-stone-400 font-normal">
-                  Sübh və Məğrib üçün lokal brauzer və PWA xatırlatmaları
+                  Sübh və Məğrib üçün lokal xatırlatma (brauzer və cihaz məhdudiyyətlərindən asılıdır)
                 </div>
               </div>
             </div>

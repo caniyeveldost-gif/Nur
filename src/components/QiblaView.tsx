@@ -136,8 +136,16 @@ export const QiblaView: React.FC<QiblaViewProps> = ({
       (err) => {
         setIsLocating(false);
         console.warn('Geolocation error:', err);
-        setGpsError('GPS koordinatları əldə edilmədi. Şəhər siyahısından istifadə edin.');
-        setTimeout(() => setGpsError(null), 4000);
+        if (err.code === 1) {
+          setGpsError('GPS icazəsi verilmədi. Şəhər siyahısından istifadə edə bilərsiniz.');
+        } else if (err.code === 2) {
+          setGpsError('GPS məkanı hazırda əlçatmazdır. Şəhər siyahısından istifadə edin.');
+        } else if (err.code === 3) {
+          setGpsError('GPS sorğusu vaxt aşımına uğradı. Şəhər siyahısından istifadə edin.');
+        } else {
+          setGpsError('GPS koordinatları əldə edilmədi. Şəhər siyahısından istifadə edin.');
+        }
+        setTimeout(() => setGpsError(null), 5000);
       },
       { timeout: 8000, enableHighAccuracy: true }
     );

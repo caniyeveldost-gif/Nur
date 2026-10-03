@@ -1,5 +1,7 @@
 import express, { Request, Response } from "express";
+import http from "http";
 import path from "path";
+import fs from "fs";
 import dotenv from "dotenv";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
@@ -16,7 +18,7 @@ import {
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 app.use(express.json({ limit: "100kb" }));
 
@@ -46,31 +48,57 @@ setInterval(() => {
   }
 }, 300000);
 
-// Helper to get Baku date string
+// Helper to get Baku date string (YYYY-MM-DD)
 function getBakuDateStr(date: Date = new Date()): string {
   try {
-    const formatter = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'Asia/Baku',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Baku",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
     });
     const parts = formatter.formatToParts(date);
-    const y = parts.find((p) => p.type === 'year')?.value;
-    const m = parts.find((p) => p.type === 'month')?.value;
-    const d = parts.find((p) => p.type === 'day')?.value;
+    const y = parts.find((p) => p.type === "year")?.value;
+    const m = parts.find((p) => p.type === "month")?.value;
+    const d = parts.find((p) => p.type === "day")?.value;
     if (y && m && d) return `${y}-${m}-${d}`;
   } catch (_e) {}
-  return date.toISOString().split('T')[0];
+  // UTC+4 fallback calculation
+  const utcTime = date.getTime() + date.getTimezoneOffset() * 60000;
+  const bakuDate = new Date(utcTime + 4 * 3600000);
+  return bakuDate.toISOString().split("T")[0];
 }
 
-// Lazy-initialized Gemini client
+// Helper to format Date to HH:mm in Asia/Baku timezone with robust UTC+4 fallback
+function formatTimeToBaku(date: Date, minuteAdjustment: number = 0): string {
+  if (!date || isNaN(date.getTime())) return "--:--";
+  const adjusted = new Date(date.getTime() + minuteAdjustment * 60000);
+  try {
+    const parts = new Intl.DateTimeFormat("az-AZ", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Asia/Baku",
+      hour12: false,
+    }).formatToParts(adjusted);
+    const h = parts.find((p) => p.type === "hour")?.value || "00";
+    const m = parts.find((p) => p.type === "minute")?.value || "00";
+    return `${h.padStart(2, "0")}:${m.padStart(2, "0")}`;
+  } catch (_e) {
+    const utcTime = adjusted.getTime() + adjusted.getTimezoneOffset() * 60000;
+    const bakuDate = new Date(utcTime + 4 * 3600000);
+    const h = String(bakuDate.getHours()).padStart(2, "0");
+    const m = String(bakuDate.getMinutes()).padStart(2, "0");
+    return `${h}:${m}`;
+  }
+}
+
+// Lazy-initialized Gemini client (returns null gracefully if GEMINI_API_KEY is not set)
 let aiClient: GoogleGenAI | null = null;
-function getGeminiClient(): GoogleGenAI {
+function getGeminiClient(): GoogleGenAI | null {
   if (!aiClient) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      throw new Error("GEMINI_API_KEY mühit dəyişəni təyin olunmayıb.");
+      return null;
     }
     aiClient = new GoogleGenAI({
       apiKey,
@@ -84,16 +112,137 @@ function getGeminiClient(): GoogleGenAI {
   return aiClient;
 }
 
+// Comprehensive local Islamic knowledge base fallback when AI service is unavailable
+function getLocalIslamicFallbackResponse(question: string): string {
+  const lower = question.toLowerCase();
+
+  if (lower.includes("dəstəmaz") || lower.includes("destemaz")) {
+    return `Dəstəmazın İslamda fərz olan 4 əsas şərti (əl-Maidə surəsi, 5:6):
+1. Üzü bir dəfə tam yumaq (alın saçının bitdiyi yerdən çənənin altına, iki qulaq məməsinə qədər).
+2. Qolları dirsəklərlə birlikdə yumaq.
+3. Başın ən azı dörddə bir hissəsinə məsh çəkmək.
+4. Ayaqları topuqlarla birlikdə yumaq.
+
+Məzhəb fərqlilikləri:
+- Şafi və Cəfəri məzhəblərində dəstəmaza başlayarkən niyyət etmək və əzaların sırasına (tərtibə) riayət etmək də fərz sayılır.
+- Hənəfi məzhəbində isə niyyət və tərtib sünnətdir.
+
+📌 Mənbələr və İstinadlar:
+- Quran-i Kərim: əl-Maidə surəsi, 6-cı ayə.
+- Səhih əl-Buxari: "Dəstəmaz kitabı", Hədis № 135.
+- Səhih Müslim: Hədis № 226.
+
+⚠️ Qeyd: Cavabda qeyd olunan istinadların (ayə və hədis nömrələrinin) dəqiqliyini mötəbər dini kitablardan və ya rəsmi mənbələrdən ayrıca yoxlamaq tövsiyə olunur.`;
+  }
+
+  if (lower.includes("qədr") || lower.includes("qedr")) {
+    return `Qədr gecəsi (Leylətül-Qədr) Ramazan ayının son on gününün tək gecələrində (xüsusilə 27-ci gecəsində) axtarılır.
+
+Əsas fəzilətləri:
+1. Min aydan (təxminən 83 il 4 aylıq daimi ibadətdən) daha xeyirlidir.
+2. Quran-i Kərim ilk dəfə bu mübarək gecədə Lövhi-Məhfuzdan dünya səmasına nazil olmuşdur.
+3. Mələklər və Cəbrail (ə) yer üzünə enərək səhər şəfəqinə qədər bəndələrə salam və salamatlıq bəxş edərlər.
+
+Peyğəmbərimizin (s.ə.s) tövsiyə etdiyi xüsusi dua:
+"Allahummə innəkə Afuvvun, tuhibbul-afvə fə'fu anni" (Allahım! Şübhəsiz ki, Sən Bağışlayansan, bağışlamağı sevirsən, məni də bağışla!).
+
+📌 Mənbələr və İstinadlar:
+- Quran-i Kərim: əl-Qədr surəsi, 1-5-ci ayələr.
+- ət-Tirmizi: Hədis № 3513 (Səhih).
+- Səhih əl-Buxari: Hədis № 2014.
+
+⚠️ Qeyd: Cavabda qeyd olunan istinadların (ayə və hədis nömrələrinin) dəqiqliyini mötəbər dini kitablardan və ya rəsmi mənbələrdən ayrıca yoxlamaq tövsiyə olunur.`;
+  }
+
+  if (lower.includes("tövbə") || lower.includes("tovbe") || lower.includes("bağışlan")) {
+    return `İslamda tövbənin qəbul olunması üçün 4 əsas şərt vardır:
+1. Günahı dərhal tərk etmək.
+2. Etdiyi günaha görə səmimi qəlbdən peşman olmaq.
+3. Həmin günaha bir daha qayıtmamağa qətiyyətlə əhd etmək.
+4. Əgər qul haqqı (insan haqqı) tapdanıbsa, mütləq həmin şəxsin haqqını qaytarmaq və ondan halallıq almaq.
+
+Uca Allah buyurur: "Ey iman gətirənlər! Allaha səmimi-qəlbdən tövbə edin!" (ət-Təhrim, 66:8).
+
+📌 Mənbələr və İstinadlar:
+- Quran-i Kərim: ət-Təhrim surəsi, 8-ci ayə; əz-Zümər surəsi, 53-cü ayə.
+- Səhih Müslim: Hədis № 2758.
+- İmam Nəvəvi: "Riyazus-Salihin", Tövbə fəsli.
+
+⚠️ Qeyd: Cavabda qeyd olunan istinadların (ayə və hədis nömrələrinin) dəqiqliyini mötəbər dini kitablardan və ya rəsmi mənbələrdən ayrıca yoxlamaq tövsiyə olunur.`;
+  }
+
+  if (lower.includes("namaz") || lower.includes("vaxt") || lower.includes("səfər")) {
+    return `Namaz İslamın 5 əsas sütunundan biridir və həddi-büluğa çatmış hər bir müsəlmana gündə 5 vaxt fərzdir:
+1. Sübh – 2 rükət fərz.
+2. Zöhr – 4 rükət fərz.
+3. Əsr – 4 rükət fərz.
+4. Məğrib (Şam) – 3 rükət fərz.
+5. İşa (Xuftən) – 4 rükət fərz.
+
+Səfər namazı (Qəsr):
+- Şəriətə görə səfərə çıxan şəxs (təxminən 80-90 km və daha artıq məsafə) 4 rükətli fərz namazlarını (Zöhr, Əsr, İşa) 2 rükət olaraq qısaldaraq qılır. Sübh və Məğrib namazları qısaldılmaz.
+
+📌 Mənbələr və İstinadlar:
+- Quran-i Kərim: ən-Nisa surəsi, 101 və 103-cü ayələr.
+- Səhih əl-Buxari: "Namazın qısaldılması kitabı", Hədis № 1082.
+- Səhih Müslim: Hədis № 685.
+
+⚠️ Qeyd: Cavabda qeyd olunan istinadların (ayə və hədis nömrələrinin) dəqiqliyini mötəbər dini kitablardan və ya rəsmi mənbələrdən ayrıca yoxlamaq tövsiyə olunur.`;
+  }
+
+  if (lower.includes("oruc") || lower.includes("ramazan") || lower.includes("iftar") || lower.includes("sahur")) {
+    return `Ramazan ayı orucu İslamın beş şərtindən biridir (əl-Bəqərə, 2:183).
+
+Orucun əsas qaydaları:
+- Niyyət: İmsak vaxtından əvvəl oruca səmimi niyyət etmək fərzdir.
+- İmsak və İftar: Sübh azanından (dan yerinin ağarmasından) günəşin tam qürub etdiyi ana (Məğrib azanına) qədər yemək, içmək və nəfsi istəklərdən uzaq durmaq.
+- Orucu pozan hallar: Qəsdən yemək, içmək, bədənə qida xarakterli maddələr daxil etmək. Unudaraq yeyib-içmək isə orucu pozmaz; xatırlayan kimi dərhal ağzı yaxalamaq kifayətdir.
+
+📌 Mənbələr və İstinadlar:
+- Quran-i Kərim: əl-Bəqərə surəsi, 183-187-ci ayələr.
+- Səhih əl-Buxari: Hədis № 1899.
+- Səhih Müslim: Hədis № 1151.
+
+⚠️ Qeyd: Cavabda qeyd olunan istinadların (ayə və hədis nömrələrinin) dəqiqliyini mötəbər dini kitablardan və ya rəsmi mənbələrdən ayrıca yoxlamaq tövsiyə olunur.`;
+  }
+
+  if (lower.includes("zikr") || lower.includes("təsbeh") || lower.includes("salavat")) {
+    return `Zikr qəlbi nurlandıran və Allaha yaxınlaşdıran ən fəzilətli ibadətlərdəndir:
+- "Sübhanallah" (33 dəfə)
+- "Əlhəmdulilləh" (33 dəfə)
+- "Allahu Əkbər" (33 dəfə)
+- "Lə iləhə illəllah" (100 dəfə) – İmanın ən uca kəlməsi.
+- Salavat: "Allahummə salli alə Muhəmmədin va alə əli Muhəmməd" – Kim Peyğəmbərə bir salavat göndərərsə, Allah ona on rəhmət göndərər.
+
+📌 Mənbələr və İstinadlar:
+- Quran-i Kərim: əl-Əhzab surəsi, 41-ci ayə: "Ey iman gətirənlər! Allahı çox zikr edin!"
+- Səhih Müslim: Hədis № 597.
+- Səhih əl-Buxari: Hədis № 6405.
+
+⚠️ Qeyd: Cavabda qeyd olunan istinadların (ayə və hədis nömrələrinin) dəqiqliyini mötəbər dini kitablardan və ya rəsmi mənbələrdən ayrıca yoxlamaq tövsiyə olunur.`;
+  }
+
+  return `Əs-Səlamu aleykum və rəhmətullahi və bərəkətuh. Sualınız üçün təşəkkür edirik.
+
+İslam prinsiplərinə görə hər bir dini məsələ Quran-i Kərim ayələri və Peyğəmbərimizin (s.ə.s) səhih sünnəsinə əsaslanmalıdır.
+
+Məsləhətlər:
+- Gündəlik namaz, oruc, zikr və dualar barədə tətbiqimizin "Namaz Vaxtları", "Quran", "Dualar" və "Təsbeh" bölmələrindən ətraflı istifadə edə bilərsiniz.
+- Fərdi hüquqi məsələlər, miras, ailə və rəsmi fətvalar üçün yerli səlahiyyətli dini quruma (məsələn, Qafqaz Müsəlmanları İdarəsi) və ya mötəbər İslam alimlərinə müraciət etməyiniz tövsiyə olunur.
+
+📌 Mənbələr və İstinadlar:
+- Quran-i Kərim: ən-Nəhl surəsi, 43-cü ayə: "Əgər bilmirsinizsə, elm əhlindən soruşun!"
+- Səhih əl-Buxari və Səhih Müslim.
+
+⚠️ Qeyd: Cavabda qeyd olunan istinadların (ayə və hədis nömrələrinin) dəqiqliyini mötəbər dini kitablardan və ya rəsmi mənbələrdən ayrıca yoxlamaq tövsiyə olunur.`;
+}
+
 // Health check endpoint
 app.get("/api/health", (_req: Request, res: Response) => {
   res.json({ status: "ok", app: "Nur", time: new Date().toISOString() });
 });
 
 // Azerbaijani city coordinates for astronomical calculations
-// AUDIT NOTE: Manual city 'offsetMinutes' have been completely removed.
-// Adhan calculates precise astronomical solar prayer times directly from each city's exact
-// geographical latitude and longitude (e.g. Gəncə 46.36°E vs Bakı 49.87°E). Adding manual offsets
-// on top of astronomical coordinates would produce double-offset errors.
 interface CityInfo {
   name: string;
   lat: number;
@@ -116,17 +265,6 @@ const AZ_CITIES: Record<string, CityInfo> = {
   Xankendi: { name: "Xankəndi", lat: 39.8265, lng: 46.7656 },
   Zaqatala: { name: "Zaqatala", lat: 41.6336, lng: 46.6433 },
 };
-
-// Helper to format Date to HH:mm in Asia/Baku timezone
-function formatTimeToBaku(date: Date, minuteAdjustment: number = 0): string {
-  const adjusted = new Date(date.getTime() + minuteAdjustment * 60000);
-  return adjusted.toLocaleTimeString("az-AZ", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "Asia/Baku",
-    hour12: false,
-  });
-}
 
 // Prayer times endpoint using adhan astronomical library
 app.get("/api/prayer-times", async (req: Request, res: Response) => {
@@ -214,6 +352,13 @@ app.post("/api/gemini/religious-chat", async (req: Request, res: Response) => {
 
     const ai = getGeminiClient();
 
+    // If Gemini client cannot be initialized (e.g. no GEMINI_API_KEY), gracefully return local fallback
+    if (!ai) {
+      const fallbackReply = getLocalIslamicFallbackResponse(trimmedQuestion);
+      res.json({ reply: fallbackReply });
+      return;
+    }
+
     const systemInstruction = `Sən “Nur” adlı müasir İslam bələdçisi tətbiqinin etibarlı dini köməkçisisən (Nur AI).
 Sənin əsas məqsədin istifadəçilərə İslam dini, Quran ayələri, hədislər, ibadətlər (namaz, oruc, zəkat, həcc, zikr, dua) və əxlaq haqqında dəqiq, mötəbər və maarifləndirici məlumat verməkdir.
 
@@ -246,42 +391,59 @@ AŞAĞIDAKİ QAYDALARA QƏTİYYƏTLƏ ƏMƏL ET:
         ]
       : trimmedQuestion;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.8-flash",
-      contents: contents,
-      config: {
-        systemInstruction,
-        temperature: 0.25, // Lower temperature for high factual accuracy in religious answers
-      },
-    });
+    try {
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: contents,
+        config: {
+          systemInstruction,
+          temperature: 0.25, // Lower temperature for high factual accuracy in religious answers
+        },
+      });
 
-    const reply = response.text || "Bağışlayın, cavab hazırlana bilmədi. Zəhmət olmasa sualınızı bir qədər fərqli formada yenidən verin.";
-
-    res.json({ reply });
+      const reply = response.text || getLocalIslamicFallbackResponse(trimmedQuestion);
+      res.json({ reply });
+    } catch (genError) {
+      console.warn("Gemini model generation error, falling back to local knowledge:", genError);
+      const fallbackReply = getLocalIslamicFallbackResponse(trimmedQuestion);
+      res.json({ reply: fallbackReply });
+    }
   } catch (error: unknown) {
     console.error("Gemini religious-chat error:", error);
-    res.status(500).json({
-      error: "Dini köməkçi ilə əlaqə qurarkən xəta baş verdi. Zəhmət olmasa bir qədər sonra yenidən cəhd edin.",
-    });
+    // Never crash or leave client hanging, return local knowledge base reply
+    const questionText = typeof req.body?.question === "string" ? req.body.question : "";
+    res.json({ reply: getLocalIslamicFallbackResponse(questionText) });
   }
 });
 
 async function startServer() {
+  const server = http.createServer(app);
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: {
+          server,
+        },
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
+    const indexPath = path.join(distPath, "index.html");
+    app.use(express.static(distPath, { maxAge: "1d", index: false }));
     app.get("*", (_req: Request, res: Response) => {
-      res.sendFile(path.join(distPath, "index.html"));
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        res.status(404).send("Nur web tətbiqi dist/index.html faylı tapılmadı.");
+      }
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  server.listen(PORT, "0.0.0.0", () => {
     console.log(`Nur app server running on http://localhost:${PORT}`);
   });
 }

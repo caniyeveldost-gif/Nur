@@ -1,7 +1,7 @@
 {
-  "name": "Nur - Müasir Dini Bələdçi",
+  "name": "Nur - İslam Bələdçisi",
   "short_name": "Nur",
-  "description": "Azərbaycan dilində müasir və etibarlı dini web tətbiq: Namaz vaxtları, Quran-i Kərim, dualar, təsbeh və Qiblə",
+  "description": "Azərbaycan dilində İslam bələdçisi: namaz vaxtları, Quran, dualar, zikrlər və Qiblə",
   "start_url": "/",
   "id": "/",
   "display": "standalone",

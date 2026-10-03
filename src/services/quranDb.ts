@@ -1,7 +1,7 @@
 import { Ayah } from '../types';
 
 // IndexedDB Helper for "Nur" Quran storage
-// Allows storing full 114 Surahs offline without localStorage 5MB quota limits.
+// Caches opened Surahs offline in IndexedDB without localStorage 5MB quota limits.
 
 const DB_NAME = 'nur_quran_db';
 const DB_VERSION = 1;
@@ -38,6 +38,18 @@ function openDb(): Promise<IDBDatabase | null> {
   });
 }
 
+function isValidAyahArray(ayahs: unknown): ayahs is Ayah[] {
+  if (!Array.isArray(ayahs) || ayahs.length === 0) return false;
+  return ayahs.every(
+    (item) =>
+      item &&
+      typeof item === 'object' &&
+      typeof (item as Ayah).numberInSurah === 'number' &&
+      typeof (item as Ayah).arabic === 'string' &&
+      typeof (item as Ayah).translation === 'string'
+  );
+}
+
 // Retrieve Ayahs for a given Surah number from IndexedDB
 export async function getSurahFromIndexedDB(surahNumber: number): Promise<Ayah[] | null> {
   const db = await openDb();
@@ -50,7 +62,7 @@ export async function getSurahFromIndexedDB(surahNumber: number): Promise<Ayah[]
       const req = store.get(surahNumber);
 
       req.onsuccess = () => {
-        if (req.result && Array.isArray(req.result.ayahs) && req.result.ayahs.length > 0) {
+        if (req.result && isValidAyahArray(req.result.ayahs)) {
           resolve(req.result.ayahs);
         } else {
           resolve(null);
@@ -60,6 +72,9 @@ export async function getSurahFromIndexedDB(surahNumber: number): Promise<Ayah[]
       req.onerror = () => {
         resolve(null);
       };
+
+      tx.onerror = () => resolve(null);
+      tx.onabort = () => resolve(null);
     } catch (_e) {
       resolve(null);
     }
@@ -68,6 +83,7 @@ export async function getSurahFromIndexedDB(surahNumber: number): Promise<Ayah[]
 
 // Save Ayahs for a given Surah number into IndexedDB
 export async function saveSurahToIndexedDB(surahNumber: number, ayahs: Ayah[]): Promise<boolean> {
+  if (!isValidAyahArray(ayahs)) return false;
   const db = await openDb();
   if (!db) return false;
 
@@ -83,6 +99,8 @@ export async function saveSurahToIndexedDB(surahNumber: number, ayahs: Ayah[]): 
 
       req.onsuccess = () => resolve(true);
       req.onerror = () => resolve(false);
+      tx.onerror = () => resolve(false);
+      tx.onabort = () => resolve(false);
     } catch (_e) {
       resolve(false);
     }

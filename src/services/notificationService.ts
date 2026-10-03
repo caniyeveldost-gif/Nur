@@ -1,5 +1,5 @@
 import { CityPrayerData } from '../types';
-import { getBakuDateString } from './apiService';
+import { getBakuDateString, calculateLocalPrayerTimes } from './apiService';
 
 export interface PrayerNotificationSettings {
   enabled: boolean;
@@ -22,6 +22,8 @@ const DEFAULT_SETTINGS: PrayerNotificationSettings = {
 
 let activeCheckInterval: number | null = null;
 let activeTimeouts: number[] = [];
+const inFlightNotificationKeys = new Set<string>();
+const SLEEP_TOLERANCE_MS = 15 * 60 * 1000; // 15 minutes tolerance after device sleep/tab suspend
 
 // Get saved notification settings
 export function getPrayerNotificationSettings(): PrayerNotificationSettings {
@@ -53,9 +55,18 @@ export function savePrayerNotificationSettings(settings: PrayerNotificationSetti
   }
 }
 
-// Register Service Worker
+// Register Service Worker (Active in production; in development unregisters any stale SW to avoid HMR interference)
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+    return null;
+  }
+  if (import.meta.env.DEV) {
+    try {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      for (const reg of registrations) {
+        await reg.unregister();
+      }
+    } catch (_e) {}
     return null;
   }
   try {
@@ -230,11 +241,11 @@ export function getNextPrayerNotificationInfo(prayerData: CityPrayerData): NextS
   }[] = [];
 
   const prayersToCheck: { key: 'fajr' | 'maghrib' | 'dhuhr' | 'asr' | 'isha'; name: string; time: string; enabled: boolean }[] = [
-    { key: 'fajr', name: 'Sübh (Fəcr)', time: prayerData.timings.fajr, enabled: settings.fajr },
-    { key: 'dhuhr', name: 'Günorta (Zöhr)', time: prayerData.timings.dhuhr, enabled: settings.allPrayers },
-    { key: 'asr', name: 'İkindi (Əsr)', time: prayerData.timings.asr, enabled: settings.allPrayers },
-    { key: 'maghrib', name: 'Axşam (Məğrib / İftar)', time: prayerData.timings.maghrib, enabled: settings.maghrib },
-    { key: 'isha', name: 'Yatsı (İşa)', time: prayerData.timings.isha, enabled: settings.allPrayers },
+    { key: 'fajr', name: 'Sübh', time: prayerData.timings.fajr, enabled: settings.fajr },
+    { key: 'dhuhr', name: 'Zöhr', time: prayerData.timings.dhuhr, enabled: settings.allPrayers },
+    { key: 'asr', name: 'Əsr', time: prayerData.timings.asr, enabled: settings.allPrayers },
+    { key: 'maghrib', name: 'Məğrib (Şam / İftar)', time: prayerData.timings.maghrib, enabled: settings.maghrib },
+    { key: 'isha', name: 'İşa (Xuftən)', time: prayerData.timings.isha, enabled: settings.allPrayers },
   ];
 
   for (const p of prayersToCheck) {
@@ -342,9 +353,13 @@ export function scheduleDailyPrayerNotifications(prayerData: CityPrayerData): vo
   registerServiceWorker();
 
   const cityName = prayerData.cityName;
+  const scheduledDateStr = prayerData.date || getBakuDateString(new Date());
 
   // Notification dispatch helper with rich idempotency check (city, date, prayer, time, method, madhab, offset)
-  const triggerPrayerNotification = (prayerKey: 'fajr' | 'maghrib' | 'dhuhr' | 'asr' | 'isha', prayerTime: string) => {
+  const triggerPrayerNotification = async (
+    prayerKey: 'fajr' | 'maghrib' | 'dhuhr' | 'asr' | 'isha',
+    prayerTime: string
+  ): Promise<void> => {
     const todayStr = getBakuDateString(new Date());
 
     // Guard against date rollover: ensure prayerData belongs to today
@@ -360,35 +375,48 @@ export function scheduleDailyPrayerNotifications(prayerData: CityPrayerData): vo
 
     const sentKey = `nur_sent_prayer_${cityKey}_${todayStr}_${prayerKey}_${timeClean}_${method}_${madhab}_off${offset}`;
 
-    if (localStorage.getItem(sentKey)) {
-      return; // Already dispatched for this exact schedule
+    if (inFlightNotificationKeys.has(sentKey)) {
+      return;
     }
+
+    try {
+      if (localStorage.getItem(sentKey)) {
+        return; // Already dispatched for this exact schedule
+      }
+    } catch (_e) {}
 
     let title = '';
     let body = '';
 
     if (prayerKey === 'fajr') {
-      title = '🌅 Sübh (Fəcr) Namazı Vaxtıdır';
+      title = '🌅 Sübh Namazı Vaxtıdır';
       body = `${cityName} üçün Sübh namazının vaxtı daxil oldu (${prayerTime}). Namaz qılmaq yuxudan xeyirlidir!`;
     } else if (prayerKey === 'maghrib') {
-      title = '🌇 Axşam (Məğrib / İftar) Vaxtıdır';
+      title = '🌇 Məğrib (Şam / İftar) Vaxtıdır';
       body = `${cityName} üçün Məğrib namazı və iftar vaxtı (${prayerTime}) daxil oldu. Allah ibadət və dualarınızı qəbul etsin!`;
     } else if (prayerKey === 'dhuhr') {
-      title = '☀️ Zöhr (Günorta) Namazı Vaxtıdır';
+      title = '☀️ Zöhr Namazı Vaxtıdır';
       body = `${cityName} üçün Zöhr namazının vaxtı (${prayerTime}) daxil oldu.`;
     } else if (prayerKey === 'asr') {
-      title = '🌤️ Əsr (İkindi) Namazı Vaxtıdır';
+      title = '🌤️ Əsr Namazı Vaxtıdır';
       body = `${cityName} üçün Əsr namazının vaxtı (${prayerTime}) daxil oldu.`;
     } else if (prayerKey === 'isha') {
-      title = '🌙 İşa (Yatsı) Namazı Vaxtıdır';
+      title = '🌙 İşa (Xuftən) Namazı Vaxtıdır';
       body = `${cityName} üçün İşa namazının vaxtı (${prayerTime}) daxil oldu.`;
     }
 
     const tag = `prayer-${cityKey}-${todayStr}-${prayerKey}-${timeClean}`;
-    dispatchNotification(title, body, tag);
+    inFlightNotificationKeys.add(sentKey);
     try {
-      localStorage.setItem(sentKey, Date.now().toString());
-    } catch (_e) {}
+      const success = await dispatchNotification(title, body, tag);
+      if (success) {
+        try {
+          localStorage.setItem(sentKey, Date.now().toString());
+        } catch (_e) {}
+      }
+    } finally {
+      inFlightNotificationKeys.delete(sentKey);
+    }
   };
 
   // Schedule timeouts for upcoming prayers
@@ -411,29 +439,51 @@ export function scheduleDailyPrayerNotifications(prayerData: CityPrayerData): vo
     // If within today and delay is under max 32-bit int (~24.8 days)
     if (delay > 0 && delay < 86400000) {
       const timeoutId = window.setTimeout(() => {
-        triggerPrayerNotification(item.key, item.time);
+        void triggerPrayerNotification(item.key, item.time);
       }, delay);
       activeTimeouts.push(timeoutId);
     }
   }
 
-  // Also set up an active background check interval (every 30 seconds)
-  // This guards against device sleep, tab suspend, and clock adjustments
+  let lastCheckTime = Date.now();
+
+  // Active background check interval (every 30 seconds)
+  // Guards against device sleep, tab suspend, clock drift, and midnight date rollover
   activeCheckInterval = window.setInterval(() => {
     const current = new Date();
-    const currentHour = current.getHours();
-    const currentMinute = current.getMinutes();
+    const currentMs = current.getTime();
+    const currentDateStr = getBakuDateString(current);
+
+    // Date rollover check: if the day has changed, rebuild schedule for the new day
+    if (currentDateStr !== scheduledDateStr) {
+      const freshPrayerData = calculateLocalPrayerTimes(
+        prayerData.cityKey || 'Baki',
+        current,
+        prayerData.calculationMethod || 'MuslimWorldLeague',
+        prayerData.madhab === 'hanafi' ? 'hanafi' : 'shafi'
+      );
+      scheduleDailyPrayerNotifications(freshPrayerData);
+      return;
+    }
 
     for (const item of prayersToSchedule) {
       if (!item.enabled) continue;
 
-      const [pHour, pMin] = item.time.split(':').map(Number);
-      const targetMin = (pHour * 60 + pMin - settings.offsetMinutes + 1440) % 1440;
-      const currentTotalMin = currentHour * 60 + currentMinute;
+      const targetDate = getPrayerTargetTime(item.time, settings.offsetMinutes, false);
+      const targetMs = targetDate.getTime();
+      const elapsedSinceTarget = currentMs - targetMs;
 
-      if (currentTotalMin === targetMin) {
-        triggerPrayerNotification(item.key, item.time);
+      // Trigger if target time has arrived within SLEEP_TOLERANCE_MS (15 min)
+      // or crossed between lastCheckTime and currentMs (within tolerance)
+      if (
+        elapsedSinceTarget >= 0 &&
+        elapsedSinceTarget <= SLEEP_TOLERANCE_MS &&
+        (lastCheckTime <= targetMs || elapsedSinceTarget <= SLEEP_TOLERANCE_MS)
+      ) {
+        void triggerPrayerNotification(item.key, item.time);
       }
     }
+
+    lastCheckTime = currentMs;
   }, 30000);
 }

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X, Calendar as CalendarIcon, Sparkles, Moon, Star } from 'lucide-react';
 import { HIJRI_MONTHS, getHijriDate } from '../data/hijri';
 
@@ -8,6 +8,19 @@ interface CalendarModalProps {
 
 export const CalendarModal: React.FC<CalendarModalProps> = ({ onClose }) => {
   const currentHijri = getHijriDate();
+
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
 
   const holyDays = [
     { name: 'Mövlud Qəndili', hijri: '12 Rəbiüləvvəl', desc: 'Peyğəmbərimiz Həzrət Məhəmmədin (s.ə.s) mübarək mövludu' },
@@ -23,8 +36,16 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({ onClose }) => {
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-[#0c1e15] w-full max-w-lg rounded-3xl p-5 sm:p-6 shadow-2xl border border-stone-200/80 dark:border-emerald-800/40 max-h-[90vh] overflow-y-auto scrollbar-thin">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white dark:bg-[#0c1e15] w-full max-w-lg rounded-3xl p-5 sm:p-6 shadow-2xl border border-stone-200/80 dark:border-emerald-800/40 max-h-[90vh] overflow-y-auto overscroll-contain scrollbar-thin"
+      >
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-stone-100 dark:border-emerald-900/30">
           <div className="flex items-center gap-2">

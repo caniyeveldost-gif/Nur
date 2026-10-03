@@ -24,6 +24,7 @@ import { DAILY_DUA } from '../data/duas';
 import { DAILY_ZIKR } from '../data/zikrs';
 import { CityPrayerData, NavigateTabFn } from '../types';
 import { getPrayerNotificationSettings } from '../services/notificationService';
+import { safeStorage } from '../services/storageHelper';
 
 interface HomeTabProps {
   prayerData: CityPrayerData;
@@ -51,10 +52,9 @@ export const HomeTab: React.FC<HomeTabProps> = ({
   const dailyZikr = DAILY_ZIKR;
 
   // Local quick count for daily zikr
-  const [quickZikrCount, setQuickZikrCount] = useState<number>(() => {
-    const saved = localStorage.getItem(`nur_quick_zikr_${dailyZikr.id}`);
-    return saved ? parseInt(saved, 10) : 0;
-  });
+  const [quickZikrCount, setQuickZikrCount] = useState<number>(() =>
+    safeStorage.getItem<number>(`nur_quick_zikr_${dailyZikr.id}`, 0)
+  );
 
   const [copiedType, setCopiedType] = useState<string | null>(null);
 
@@ -94,10 +94,10 @@ export const HomeTab: React.FC<HomeTabProps> = ({
       const prayerSchedule = [
         { key: 'fajr', nameAz: 'Sübh', arabicName: 'الفجر', timeStr: prayerData.timings.fajr },
         { key: 'sunrise', nameAz: 'Gün çıxır', arabicName: 'الشروق', timeStr: prayerData.timings.sunrise },
-        { key: 'dhuhr', nameAz: 'Günorta (Zöhr)', arabicName: 'الظهر', timeStr: prayerData.timings.dhuhr },
-        { key: 'asr', nameAz: 'İkindi (Əsr)', arabicName: 'العصر', timeStr: prayerData.timings.asr },
-        { key: 'maghrib', nameAz: 'Axşam (Məğrib)', arabicName: 'المغرب', timeStr: prayerData.timings.maghrib },
-        { key: 'isha', nameAz: 'Yatsı (İşa)', arabicName: 'العشاء', timeStr: prayerData.timings.isha },
+        { key: 'dhuhr', nameAz: 'Zöhr', arabicName: 'الظهر', timeStr: prayerData.timings.dhuhr },
+        { key: 'asr', nameAz: 'Əsr', arabicName: 'العصر', timeStr: prayerData.timings.asr },
+        { key: 'maghrib', nameAz: 'Məğrib (Şam)', arabicName: 'المغرب', timeStr: prayerData.timings.maghrib },
+        { key: 'isha', nameAz: 'İşa (Xuftən)', arabicName: 'العشاء', timeStr: prayerData.timings.isha },
       ];
 
       const parsedTimes = prayerSchedule.map((p) => {
@@ -154,7 +154,7 @@ export const HomeTab: React.FC<HomeTabProps> = ({
     }
     const nextCount = quickZikrCount + 1;
     setQuickZikrCount(nextCount);
-    localStorage.setItem(`nur_quick_zikr_${dailyZikr.id}`, nextCount.toString());
+    safeStorage.setItem(`nur_quick_zikr_${dailyZikr.id}`, nextCount);
   };
 
   const isAyahSaved = isBookmarked('ayah', `${dailyAyah.surahNumber}:${dailyAyah.ayahNumber}`);
@@ -211,19 +211,19 @@ export const HomeTab: React.FC<HomeTabProps> = ({
             <div className="text-xs font-bold text-white mt-0.5">{prayerData.timings.fajr}</div>
           </div>
           <div className="p-1.5 rounded-lg bg-emerald-900/40 border border-emerald-700/30">
-            <div className="text-[10px] text-emerald-200">Günorta</div>
+            <div className="text-[10px] text-emerald-200">Zöhr</div>
             <div className="text-xs font-bold text-white mt-0.5">{prayerData.timings.dhuhr}</div>
           </div>
           <div className="p-1.5 rounded-lg bg-emerald-900/40 border border-emerald-700/30">
-            <div className="text-[10px] text-emerald-200">İkindi</div>
+            <div className="text-[10px] text-emerald-200">Əsr</div>
             <div className="text-xs font-bold text-white mt-0.5">{prayerData.timings.asr}</div>
           </div>
           <div className="p-1.5 rounded-lg bg-emerald-900/40 border border-emerald-700/30">
-            <div className="text-[10px] text-emerald-200">Axşam</div>
+            <div className="text-[10px] text-emerald-200">Məğrib</div>
             <div className="text-xs font-bold text-white mt-0.5">{prayerData.timings.maghrib}</div>
           </div>
           <div className="p-1.5 rounded-lg bg-emerald-900/40 border border-emerald-700/30">
-            <div className="text-[10px] text-emerald-200">Yatsı</div>
+            <div className="text-[10px] text-emerald-200">İşa</div>
             <div className="text-xs font-bold text-white mt-0.5">{prayerData.timings.isha}</div>
           </div>
         </div>

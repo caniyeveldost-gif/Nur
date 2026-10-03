@@ -13,6 +13,7 @@ import {
   X
 } from 'lucide-react';
 import { askNurAi } from '../services/apiService';
+import { safeStorage } from '../services/storageHelper';
 import { ChatMessage } from '../types';
 
 interface NurAiTabProps {
@@ -21,11 +22,9 @@ interface NurAiTabProps {
 
 export const NurAiTab: React.FC<NurAiTabProps> = ({ userName }) => {
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
-    const saved = localStorage.getItem('nur_ai_chat_history');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (_e) {}
+    const saved = safeStorage.getItem<ChatMessage[] | null>('nur_ai_chat_history', null);
+    if (saved && Array.isArray(saved) && saved.length > 0) {
+      return saved;
     }
     return [
       {
@@ -69,9 +68,7 @@ Aşağıdakı mövzularda və ya sizi maraqlandıran istənilən İslami məsəl
 
   useEffect(() => {
     scrollToBottom();
-    try {
-      localStorage.setItem('nur_ai_chat_history', JSON.stringify(messages));
-    } catch (_e) {}
+    safeStorage.setItem('nur_ai_chat_history', messages);
   }, [messages, loading]);
 
   const handleSend = async (questionToSend?: string) => {
@@ -131,9 +128,7 @@ Aşağıdakı mövzularda və ya sizi maraqlandıran istənilən İslami məsəl
     ];
     setMessages(resetMessages);
     setShowConfirmClear(false);
-    try {
-      localStorage.setItem('nur_ai_chat_history', JSON.stringify(resetMessages));
-    } catch (_e) {}
+    safeStorage.setItem('nur_ai_chat_history', resetMessages);
   };
 
   return (
@@ -308,6 +303,9 @@ Aşağıdakı mövzularda və ya sizi maraqlandıran istənilən İslami məsəl
           <Send className="w-5 h-5" />
         </button>
       </form>
+      <p className="text-[10px] text-center text-stone-500 dark:text-stone-400 pt-1.5">
+        Bələdçi xarakterlidir; rəsmi fətvalar üçün səlahiyyətli din alimlərinə müraciət edin.
+      </p>
     </div>
   );
 };

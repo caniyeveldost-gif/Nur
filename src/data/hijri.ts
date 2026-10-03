@@ -149,6 +149,7 @@ export function getHijriDate(date: Date = new Date()): {
   try {
     // Primary System: Native Intl DateTimeFormat with islamic-umalqura calendar & Latin numerals
     const formatter = new Intl.DateTimeFormat('az-u-ca-islamic-umalqura-nu-latn', {
+      timeZone: 'Asia/Baku',
       day: 'numeric',
       month: 'numeric',
       year: 'numeric',

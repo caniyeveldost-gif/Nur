@@ -23,7 +23,7 @@ import { BookmarkItem, UserSettings, TabNavigationParams, NavigateTabFn } from '
 export default function App() {
   // 1. User Settings State
   const [settings, setSettings] = useState<UserSettings>(() => {
-    return safeStorage.getItem<UserSettings>('nur_user_settings', {
+    const saved = safeStorage.getItem<UserSettings>('nur_user_settings', {
       userName: '',
       theme: 'light',
       fontSize: 'medium',
@@ -34,6 +34,14 @@ export default function App() {
       prayerMadhab: 'shafi',
       prayerAdjustments: {},
     });
+    if (typeof document !== 'undefined') {
+      if (saved.theme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    }
+    return saved;
   });
 
   // 2. Active Tab State
@@ -60,11 +68,15 @@ export default function App() {
   useEffect(() => {
     safeStorage.setItem('nur_user_settings', settings);
 
-    // Theme class on document element
+    // Theme class on document element & meta theme-color sync
     if (settings.theme === 'dark') {
       document.documentElement.classList.add('dark');
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', '#07130d');
     } else {
       document.documentElement.classList.remove('dark');
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', '#064e3b');
     }
   }, [settings]);
 

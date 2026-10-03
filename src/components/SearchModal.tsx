@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Search, BookOpen, HeartHandshake, Hash, ArrowRight } from 'lucide-react';
 import { ALL_SURAHS } from '../data/surahs';
 import { ALL_DUAS } from '../data/duas';
@@ -12,6 +12,19 @@ interface SearchModalProps {
 
 export const SearchModal: React.FC<SearchModalProps> = ({ onClose, onNavigateTab }) => {
   const [query, setQuery] = useState<string>('');
+
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
 
   const trimmed = query.trim().toLowerCase();
 
@@ -45,8 +58,16 @@ export const SearchModal: React.FC<SearchModalProps> = ({ onClose, onNavigateTab
   const totalResults = matchingSurahs.length + matchingDuas.length + matchingZikrs.length;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-16 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-white dark:bg-[#0c1e15] w-full max-w-lg rounded-3xl p-5 shadow-2xl border border-stone-200/80 dark:border-emerald-800/40 max-h-[80vh] flex flex-col">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-16 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white dark:bg-[#0c1e15] w-full max-w-lg rounded-3xl p-5 shadow-2xl border border-stone-200/80 dark:border-emerald-800/40 max-h-[80vh] flex flex-col overscroll-contain"
+      >
         {/* Search Input Bar */}
         <div className="flex items-center gap-2 pb-3 border-b border-stone-100 dark:border-emerald-900/30">
           <Search className="w-5 h-5 text-stone-400 shrink-0" />

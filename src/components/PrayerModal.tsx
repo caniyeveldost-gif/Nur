@@ -51,10 +51,20 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
   const [notificationMsg, setNotificationMsg] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [testingNotification, setTestingNotification] = useState<boolean>(false);
 
-  // Update permission status on mount
+  // Update permission status on mount and handle Escape key + body scroll lock
   useEffect(() => {
     setPermissionStatus(getNotificationPermission());
-  }, []);
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
 
   // Save settings and reschedule whenever settings change
   const updateSettings = (partial: Partial<PrayerNotificationSettings>) => {
@@ -114,17 +124,25 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
   const nextInfo = getNextPrayerNotificationInfo(prayerData);
 
   const prayerList = [
-    { key: 'fajr', nameAz: 'Sübh (Fəcr)', arabic: 'الفجر', time: prayerData.timings.fajr, desc: 'Sübh şəfəqinin sökülməsindən gün çıxana qədər' },
-    { key: 'sunrise', nameAz: 'Gün çıxır (Şuruq)', arabic: 'الشروق', time: prayerData.timings.sunrise, desc: 'Günəşin üfüqdə doğuş vaxtı (kərahət vaxtı)' },
-    { key: 'dhuhr', nameAz: 'Günorta (Zöhr)', arabic: 'الظهر', time: prayerData.timings.dhuhr, desc: 'Günəşin zenitdən qərbə meyl etdiyi andan' },
-    { key: 'asr', nameAz: 'İkindi (Əsr)', arabic: 'العصر', time: prayerData.timings.asr, desc: 'Əşyaların kölgəsi öz boyu qədər uzandıqda' },
-    { key: 'maghrib', nameAz: 'Axşam (Məğrib)', arabic: 'المغرب', time: prayerData.timings.maghrib, desc: 'Günəşin tam qürub etdiyi an (iftar vaxtı)' },
-    { key: 'isha', nameAz: 'Yatsı (İşa)', arabic: 'العشاء', time: prayerData.timings.isha, desc: 'Qürub qırmızılığının tam itməsindən sübhə qədər' },
+    { key: 'fajr', nameAz: 'Sübh', arabic: 'الفجر', time: prayerData.timings.fajr, desc: 'Sübh şəfəqinin sökülməsindən gün çıxana qədər' },
+    { key: 'sunrise', nameAz: 'Günəş çıxır', arabic: 'الشروق', time: prayerData.timings.sunrise, desc: 'Günəşin üfüqdə doğuş vaxtı (kərahət vaxtı)' },
+    { key: 'dhuhr', nameAz: 'Zöhr', arabic: 'الظهر', time: prayerData.timings.dhuhr, desc: 'Günəşin zenitdən qərbə meyl etdiyi andan' },
+    { key: 'asr', nameAz: 'Əsr', arabic: 'العصر', time: prayerData.timings.asr, desc: 'Əşyaların kölgəsi öz boyu qədər uzandıqda' },
+    { key: 'maghrib', nameAz: 'Məğrib (Şam)', arabic: 'المغرب', time: prayerData.timings.maghrib, desc: 'Günəşin tam qürub etdiyi an (iftar vaxtı)' },
+    { key: 'isha', nameAz: 'İşa (Xuftən)', arabic: 'العشاء', time: prayerData.timings.isha, desc: 'Qürub qırmızılığının tam itməsindən sübhə qədər' },
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-[#0c1e15] w-full max-w-lg rounded-3xl p-5 sm:p-6 shadow-2xl border border-stone-200/80 dark:border-emerald-800/40 max-h-[92vh] overflow-y-auto scrollbar-thin">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white dark:bg-[#0c1e15] w-full max-w-lg rounded-3xl p-5 sm:p-6 shadow-2xl border border-stone-200/80 dark:border-emerald-800/40 max-h-[92vh] overflow-y-auto overscroll-contain scrollbar-thin"
+      >
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-stone-100 dark:border-emerald-900/30">
           <div className="flex items-center gap-2.5">
@@ -189,7 +207,7 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
           </div>
         )}
 
-        {/* Section: Daily Push Notifications for Fajr and Maghrib */}
+        {/* Section: Local Device Prayer Reminders for Fajr and Maghrib */}
         <div className="mt-4 p-4 rounded-2xl bg-gradient-to-br from-emerald-50/80 via-white to-amber-50/40 dark:from-[#091f15] dark:via-[#0c1e15] dark:to-[#12241b] border border-emerald-900/15 dark:border-emerald-700/40 shadow-xs space-y-3.5">
           {/* Main Toggle Header */}
           <div className="flex items-center justify-between gap-3">
@@ -199,13 +217,13 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
               </div>
               <div>
                 <h3 className="text-xs sm:text-sm font-bold text-stone-900 dark:text-stone-100 flex items-center gap-1.5">
-                  <span>Gündəlik Namaz Bildirişləri</span>
+                  <span>Cihazdaxili Namaz Xatırlatmaları</span>
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/80 text-emerald-800 dark:text-amber-300 font-semibold">
-                    Cihazdaxili Xatırlatma
+                    Lokal Bildiriş
                   </span>
                 </h3>
                 <p className="text-[11px] text-stone-600 dark:text-stone-300">
-                  Sübh (Fəcr) və Axşam (Məğrib) namaz vaxtlarında avtomatik xatırlatma
+                  Sübh və Məğrib namaz vaxtlarında cihazdaxili xatırlatma
                 </p>
               </div>
             </div>
@@ -415,8 +433,8 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
 
               {/* Informative transparency notice on local device notification behavior */}
               <div className="p-2.5 rounded-xl bg-emerald-500/10 dark:bg-emerald-950/30 text-stone-600 dark:text-stone-300 text-[11px] leading-relaxed border border-emerald-500/20">
-                <span className="font-semibold text-emerald-800 dark:text-emerald-300">ℹ️ Cihazdaxili xatırlatma: </span>
-                Tətbiq və ya brauzer açıq olduqda təyin olunmuş dəqiqədə xəbərdarlıq edir. Şəxsi məlumatlarınız heç bir kənar serverə ötürülmür.
+                <span className="font-semibold text-emerald-800 dark:text-emerald-300">ℹ️ Cihazdaxili namaz xatırlatmaları: </span>
+                Xatırlatmalar brauzer/tətbiqin imkanlarından istifadə edərək cihaz daxilində planlaşdırılır. Brauzerin və cihazın enerji qənaəti və arxa plan məhdudiyyətləri səbəbindən bəzi hallarda gecikmə və ya dayandırılma ola bilər.
               </div>
             </div>
           )}

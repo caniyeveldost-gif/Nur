@@ -214,6 +214,15 @@ export function calculateLocalPrayerTimes(
   };
 }
 
+function isValidPrayerTimings(timings: unknown): timings is Record<string, string> {
+  if (!timings || typeof timings !== "object") return false;
+  const t = timings as Record<string, unknown>;
+  const requiredKeys = ["fajr", "sunrise", "dhuhr", "asr", "maghrib", "isha"];
+  return requiredKeys.every(
+    (k) => typeof t[k] === "string" && /^\d{2}:\d{2}$/.test(t[k] as string)
+  );
+}
+
 // Fetch prayer times with full cache key incorporating all parameters, timeout, retry, and local astronomical fallback
 export async function fetchPrayerTimes(
   cityKey: string,
@@ -231,7 +240,7 @@ export async function fetchPrayerTimes(
     const cached = localStorage.getItem(cacheKey);
     if (cached) {
       const parsed = JSON.parse(cached);
-      if (parsed && parsed.timings && parsed.timings.fajr) {
+      if (parsed && isValidPrayerTimings(parsed.timings)) {
         return parsed;
       }
     }
@@ -248,45 +257,47 @@ export async function fetchPrayerTimes(
 
     if (res.ok) {
       const data = await res.json();
-      const city = AZERBAIJAN_CITIES[cityKey] || AZERBAIJAN_CITIES.Baki;
-      const result: CityPrayerData = {
-        cityKey,
-        cityName: data.city || city.name,
-        lat: city.lat,
-        lng: city.lng,
-        qiblaAngle: data.qiblaAngle ?? calculateQiblaAngle(city.lat, city.lng),
-        distanceToKaabaKm: calculateDistanceToKaaba(city.lat, city.lng),
-        date: data.date || dateStr,
-        calculationMethod: data.calculationMethod || methodName,
-        madhab: data.madhab || madhabName,
-        source: data.source || "Astronomik hesablama · Adhan",
-        timings: (() => {
-          const fajr = applyAdjustmentToTimeString(data.timings.fajr, adjustments.fajr || 0);
-          const sunrise = applyAdjustmentToTimeString(data.timings.sunrise, adjustments.sunrise || 0);
-          const dhuhr = applyAdjustmentToTimeString(data.timings.dhuhr, adjustments.dhuhr || 0);
-          const asr = applyAdjustmentToTimeString(data.timings.asr, adjustments.asr || 0);
-          const maghrib = applyAdjustmentToTimeString(data.timings.maghrib, adjustments.maghrib || 0);
-          const isha = applyAdjustmentToTimeString(data.timings.isha, adjustments.isha || 0);
-          const nightTimes = calculateSunnahNightTimes(maghrib, fajr);
-          return {
-            fajr,
-            sunrise,
-            dhuhr,
-            asr,
-            maghrib,
-            isha,
-            midnight: nightTimes.midnight,
-            tahajjud: nightTimes.tahajjud,
-          };
-        })(),
-      };
+      if (data && isValidPrayerTimings(data.timings)) {
+        const city = AZERBAIJAN_CITIES[cityKey] || AZERBAIJAN_CITIES.Baki;
+        const result: CityPrayerData = {
+          cityKey,
+          cityName: data.city || city.name,
+          lat: city.lat,
+          lng: city.lng,
+          qiblaAngle: data.qiblaAngle ?? calculateQiblaAngle(city.lat, city.lng),
+          distanceToKaabaKm: calculateDistanceToKaaba(city.lat, city.lng),
+          date: data.date || dateStr,
+          calculationMethod: data.calculationMethod || methodName,
+          madhab: data.madhab || madhabName,
+          source: data.source || "Astronomik hesablama · Adhan",
+          timings: (() => {
+            const fajr = applyAdjustmentToTimeString(data.timings.fajr, adjustments.fajr || 0);
+            const sunrise = applyAdjustmentToTimeString(data.timings.sunrise, adjustments.sunrise || 0);
+            const dhuhr = applyAdjustmentToTimeString(data.timings.dhuhr, adjustments.dhuhr || 0);
+            const asr = applyAdjustmentToTimeString(data.timings.asr, adjustments.asr || 0);
+            const maghrib = applyAdjustmentToTimeString(data.timings.maghrib, adjustments.maghrib || 0);
+            const isha = applyAdjustmentToTimeString(data.timings.isha, adjustments.isha || 0);
+            const nightTimes = calculateSunnahNightTimes(maghrib, fajr);
+            return {
+              fajr,
+              sunrise,
+              dhuhr,
+              asr,
+              maghrib,
+              isha,
+              midnight: nightTimes.midnight,
+              tahajjud: nightTimes.tahajjud,
+            };
+          })(),
+        };
 
-      // Save to localStorage for offline cache
-      try {
-        localStorage.setItem(cacheKey, JSON.stringify(result));
-      } catch (_e) {}
+        // Save to localStorage for offline cache
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify(result));
+        } catch (_e) {}
 
-      return result;
+        return result;
+      }
     }
   } catch (_e) {
     // Fall through to local calculation
@@ -313,10 +324,11 @@ export async function fetchSurahAyahs(surahNumber: number): Promise<Ayah[]> {
   // 2. Check preloaded collection
   if (PRELOADED_SURAHS[surahNumber]) {
     surahCache[surahNumber] = PRELOADED_SURAHS[surahNumber];
+    void saveSurahToIndexedDB(surahNumber, PRELOADED_SURAHS[surahNumber]);
     return PRELOADED_SURAHS[surahNumber];
   }
 
-  // 3. Check persistent IndexedDB cache (no 5MB localStorage limits)
+  // 3. Check persistent IndexedDB cache
   try {
     const idbData = await getSurahFromIndexedDB(surahNumber);
     if (idbData && idbData.length > 0) {
@@ -332,14 +344,13 @@ export async function fetchSurahAyahs(surahNumber: number): Promise<Ayah[]> {
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed) && parsed.length > 0) {
         surahCache[surahNumber] = parsed;
-        // Migrate to IndexedDB in background
-        saveSurahToIndexedDB(surahNumber, parsed);
+        await saveSurahToIndexedDB(surahNumber, parsed);
         return parsed;
       }
     }
   } catch (_e) {}
 
-  // 5. Attempt to fetch from public Quran Cloud API
+  // 5. Attempt to fetch from public Quran Cloud API when online
   try {
     const res = await fetch(`https://api.alquran.cloud/v1/surah/${surahNumber}/editions/quran-uthmani,az.mammadaliyev`);
     if (res.ok) {
@@ -356,8 +367,7 @@ export async function fetchSurahAyahs(surahNumber: number): Promise<Ayah[]> {
         }));
 
         surahCache[surahNumber] = ayahs;
-        // Save to IndexedDB
-        saveSurahToIndexedDB(surahNumber, ayahs);
+        await saveSurahToIndexedDB(surahNumber, ayahs);
         return ayahs;
       }
     }
@@ -373,7 +383,7 @@ export async function fetchSurahAyahs(surahNumber: number): Promise<Ayah[]> {
   }
 
   // Throw descriptive error if no cache exists (never fabricate fake Quran ayahs)
-  throw new Error("Surə ayələrini internetdən yükləmək mümkün olmadı. Zəhmət olmasa internet bağlantınızı yoxlayıb yenidən cəhd edin.");
+  throw new Error("Bu surə offline saxlanılmayıb");
 }
 
 // Fallback intelligent answers for common Islamic questions

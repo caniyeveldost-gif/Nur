@@ -1,5 +1,5 @@
 // Service Worker for "Nur" Islamic Web Application
-// Production PWA caching, background prayer notifications, and offline resilience
+// Production PWA caching and offline resilience
 
 const CACHE_NAME = 'nur-cache-v2';
 const STATIC_ASSETS = [
@@ -55,6 +55,18 @@ self.addEventListener('fetch', (event) => {
 
   // Skip Chrome extension and non-http(s) requests
   if (!url.protocol.startsWith('http')) return;
+
+  // Never intercept Vite development endpoints, HMR, hot updates, or WebSocket upgrades
+  if (
+    url.pathname.startsWith('/@') ||
+    url.pathname.includes('/node_modules/') ||
+    url.pathname.includes('hot-update') ||
+    url.searchParams.has('import') ||
+    url.searchParams.has('direct') ||
+    request.headers.get('Upgrade') === 'websocket'
+  ) {
+    return;
+  }
 
   // 1. Navigation requests (Page reloads, deep links)
   if (request.mode === 'navigate') {
@@ -152,39 +164,7 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Push notification handling
-self.addEventListener('push', (event) => {
-  let data = {
-    title: 'Nur - Namaz Vaxtı',
-    body: 'Namaz vaxtı daxil oldu.',
-    tag: 'prayer-time',
-    url: '/',
-  };
-
-  if (event.data) {
-    try {
-      data = Object.assign(data, event.data.json());
-    } catch (_e) {
-      data.body = event.data.text();
-    }
-  }
-
-  const options = {
-    body: data.body,
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
-    vibrate: [200, 100, 200, 100, 200],
-    tag: data.tag || 'prayer-notification',
-    renotify: true,
-    data: {
-      url: data.url || '/',
-    },
-  };
-
-  event.waitUntil(self.registration.showNotification(data.title, options));
-});
-
-// Notification click handling
+// Local notification click handling
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const targetUrl = (event.notification.data && event.notification.data.url) || '/';
