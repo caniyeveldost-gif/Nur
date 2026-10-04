@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Nur</string>
+    <string name="title_activity_main">Nur</string>
+    <string name="package_name">az.nur.app</string>
+    <string name="custom_url_scheme">az.nur.app</string>
+</resources>

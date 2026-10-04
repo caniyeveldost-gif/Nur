@@ -7,22 +7,22 @@ import {
   Copy,
   Check,
   Volume2,
-  VolumeX,
   Share2,
   ChevronRight,
   ChevronLeft,
-  Sparkles,
   RotateCcw,
   AlertCircle,
   Play,
   Pause,
+  Square,
+  SkipBack,
+  SkipForward,
   Sliders,
-  SlidersHorizontal,
-  Layers
+  SlidersHorizontal
 } from 'lucide-react';
 import { ALL_SURAHS, PRELOADED_SURAHS } from '../data/surahs';
 import { fetchSurahAyahs } from '../services/apiService';
-import { getCachedSurahNumbers } from '../services/quranDb';
+import { getCachedSurahNumbers, getSurahFromIndexedDB } from '../services/quranDb';
 import { safeStorage } from '../services/storageHelper';
 import { Surah, Ayah, LastRead } from '../types';
 
@@ -74,23 +74,57 @@ export const QuranTab: React.FC<QuranTabProps> = ({
 
   const [copiedAyahNumber, setCopiedAyahNumber] = useState<number | null>(null);
   const [sharedAyahNumber, setSharedAyahNumber] = useState<number | null>(null);
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [isPaused, setIsPaused] = useState<boolean>(false);
+  const [isSurahPlaying, setIsSurahPlaying] = useState<boolean>(false);
   const [playingAyah, setPlayingAyah] = useState<number | null>(null);
+  const [currentAudioUrl, setCurrentAudioUrl] = useState<string>('');
+  const [audioQueueIndex, setAudioQueueIndex] = useState<number | null>(null);
   const [audioErrorMsg, setAudioErrorMsg] = useState<string | null>(null);
   const [cachedSurahs, setCachedSurahs] = useState<Set<number>>(
     () => new Set(Object.keys(PRELOADED_SURAHS).map(Number))
   );
+  const [cachedAyahsMap, setCachedAyahsMap] = useState<Record<number, Ayah[]>>(
+    () => ({ ...PRELOADED_SURAHS })
+  );
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const preloadAudioRef = useRef<HTMLAudioElement | null>(null);
+  const preloadedUrlRef = useRef<string>('');
+  const playbackSessionRef = useRef<number>(0);
+  const playbackSpeedRef = useRef<number>(1.0);
+  const autoNextAyahRef = useRef<boolean>(true);
+  const forceSurahContinuousRef = useRef<boolean>(true);
+  const consecutiveAudioErrorsRef = useRef<number>(0);
+  const errorToastTimeoutRef = useRef<number | null>(null);
 
-  // Sync cached surah numbers from IndexedDB
+  useEffect(() => {
+    playbackSpeedRef.current = playbackSpeed;
+  }, [playbackSpeed]);
+
+  useEffect(() => {
+    autoNextAyahRef.current = autoNextAyah;
+  }, [autoNextAyah]);
+
+  // Sync cached surah numbers and ayahs from IndexedDB for offline indicator & global search
   useEffect(() => {
     getCachedSurahNumbers()
-      .then((nums) => {
+      .then(async (nums) => {
         setCachedSurahs((prev) => {
           const next = new Set(prev);
           nums.forEach((n) => next.add(n));
           return next;
         });
+        const entries: Record<number, Ayah[]> = {};
+        for (const num of nums) {
+          const stored = await getSurahFromIndexedDB(num);
+          if (stored && stored.length > 0) {
+            entries[num] = stored;
+          }
+        }
+        if (Object.keys(entries).length > 0) {
+          setCachedAyahsMap((prev) => ({ ...prev, ...entries }));
+        }
       })
       .catch(() => {});
   }, []);
@@ -105,25 +139,62 @@ export const QuranTab: React.FC<QuranTabProps> = ({
     }
   }, [initialSurahNumber, initialAyahNumber]);
 
+  const showAudioError = (msg: string) => {
+    setAudioErrorMsg(msg);
+    if (errorToastTimeoutRef.current) {
+      window.clearTimeout(errorToastTimeoutRef.current);
+    }
+    errorToastTimeoutRef.current = window.setTimeout(() => {
+      setAudioErrorMsg(null);
+    }, 3500);
+  };
+
   const cleanupAudio = () => {
+    playbackSessionRef.current += 1;
+    consecutiveAudioErrorsRef.current = 0;
     if (audioRef.current) {
       audioRef.current.onended = null;
       audioRef.current.onerror = null;
       audioRef.current.pause();
-      audioRef.current.src = '';
+      audioRef.current.currentTime = 0;
+      audioRef.current.removeAttribute('src');
+      try {
+        audioRef.current.load();
+      } catch (_e) {}
     }
+    if (preloadAudioRef.current) {
+      preloadAudioRef.current.onended = null;
+      preloadAudioRef.current.onerror = null;
+      preloadAudioRef.current.removeAttribute('src');
+      try {
+        preloadAudioRef.current.load();
+      } catch (_e) {}
+    }
+    preloadedUrlRef.current = '';
+  };
+
+  const handleStopSurahAudio = () => {
+    cleanupAudio();
+    setIsPlaying(false);
+    setIsPaused(false);
+    setIsSurahPlaying(false);
+    setPlayingAyah(null);
+    setCurrentAudioUrl('');
+    setAudioQueueIndex(null);
   };
 
   // Cleanup audio on unmount
   useEffect(() => {
     return () => {
       cleanupAudio();
+      if (errorToastTimeoutRef.current) {
+        window.clearTimeout(errorToastTimeoutRef.current);
+      }
     };
   }, []);
 
   const handleSelectSurah = async (surah: Surah, startAyah?: number) => {
-    cleanupAudio();
-    setPlayingAyah(null);
+    handleStopSurahAudio();
     setSelectedSurah(surah);
     setLoadingAyahs(true);
     setLoadError(null);
@@ -138,6 +209,7 @@ export const QuranTab: React.FC<QuranTabProps> = ({
         next.add(surah.number);
         return next;
       });
+      setCachedAyahsMap((prev) => ({ ...prev, [surah.number]: data }));
 
       // Save as last read
       const newLastRead: LastRead = {
@@ -164,15 +236,14 @@ export const QuranTab: React.FC<QuranTabProps> = ({
       }
     } catch (e) {
       console.error('Error loading surah:', e);
-      setLoadError('Bu surə hazırda offline saxlanılmayıb. İnternetə qoşulduqda surəni bir dəfə açın.');
+      setLoadError('Bu surə hələ offline yadda saxlanılmayıb. İnternetə qoşulduqda surəni bir dəfə açın.');
     } finally {
       setLoadingAyahs(false);
     }
   };
 
   const handleBackToList = () => {
-    cleanupAudio();
-    setPlayingAyah(null);
+    handleStopSurahAudio();
     setSelectedSurah(null);
     setAyahs([]);
     setLoadError(null);
@@ -216,69 +287,231 @@ export const QuranTab: React.FC<QuranTabProps> = ({
     handleCopyAyah(ayah);
   };
 
-  // Play audio recitation with EveryAyah CDN & auto-next
-  const handlePlayAyahAudio = (surahNumber: number, ayahNumber: number) => {
+  const getAyahAudioUrl = (surahNumber: number, ayahNumber: number): string => {
+    const sPad = surahNumber.toString().padStart(3, '0');
+    const aPad = ayahNumber.toString().padStart(3, '0');
+    return `https://everyayah.com/data/Alafasy_128kbps/${sPad}${aPad}.mp3`;
+  };
+
+  const preloadNextAyahAudio = (surahNumber: number, nextAyahNumber: number, totalAyahs: number) => {
+    if (nextAyahNumber > totalAyahs) {
+      preloadedUrlRef.current = '';
+      return;
+    }
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return;
+    try {
+      const nextUrl = getAyahAudioUrl(surahNumber, nextAyahNumber);
+      if (!preloadAudioRef.current) {
+        preloadAudioRef.current = new Audio();
+        preloadAudioRef.current.preload = 'auto';
+      }
+      if (preloadedUrlRef.current !== nextUrl) {
+        preloadAudioRef.current.src = nextUrl;
+        preloadAudioRef.current.load();
+        preloadedUrlRef.current = nextUrl;
+      }
+    } catch (_e) {}
+  };
+
+  // Core Surah & Ayah sequential audio queue using preloaded audio promotion and session token guard
+  const startAyahPlayback = (surah: Surah, ayahNumber: number, forceContinuous: boolean) => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      handleStopSurahAudio();
+      showAudioError('Bu ayənin səsi yüklənmədi. İnternet bağlantınızı yoxlayın.');
+      return;
+    }
+
+    playbackSessionRef.current += 1;
+    const sessionId = playbackSessionRef.current;
+    forceSurahContinuousRef.current = forceContinuous;
+
+    const url = getAyahAudioUrl(surah.number, ayahNumber);
+
+    setPlayingAyah(ayahNumber);
+    setAudioQueueIndex(ayahNumber - 1);
+    setCurrentAudioUrl(url);
+    setIsPlaying(true);
+    setIsPaused(false);
+    setIsSurahPlaying(true);
+
+    // Update last read position
+    const updatedLastRead: LastRead = {
+      surahNumber: surah.number,
+      surahName: surah.transliteration,
+      ayahNumber,
+      timestamp: new Date().toISOString(),
+    };
+    setLastRead(updatedLastRead);
+    safeStorage.setItem('nur_last_read_quran', updatedLastRead);
+
+    // Scroll active ayah into view smoothly
+    const el = document.getElementById(`ayah-${ayahNumber}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    try {
+      let audio: HTMLAudioElement;
+
+      // If this exact ayah URL was already preloaded in preloadAudioRef, promote it directly without re-downloading!
+      if (preloadAudioRef.current && preloadedUrlRef.current === url) {
+        if (audioRef.current && audioRef.current !== preloadAudioRef.current) {
+          audioRef.current.onended = null;
+          audioRef.current.onerror = null;
+          audioRef.current.pause();
+          audioRef.current.removeAttribute('src');
+        }
+        audio = preloadAudioRef.current;
+        audioRef.current = audio;
+        preloadAudioRef.current = null;
+        preloadedUrlRef.current = '';
+      } else {
+        if (!audioRef.current) {
+          audioRef.current = new Audio();
+        }
+        audio = audioRef.current;
+        audio.onended = null;
+        audio.onerror = null;
+        audio.pause();
+        audio.src = url;
+      }
+
+      audio.playbackRate = playbackSpeedRef.current;
+
+      // Immediately preload the next ayah in the background
+      preloadNextAyahAudio(surah.number, ayahNumber + 1, surah.totalAyahs);
+
+      const handleAyahFailure = () => {
+        if (playbackSessionRef.current !== sessionId) return;
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          handleStopSurahAudio();
+          showAudioError('Bu ayənin səsi yüklənmədi. İnternet bağlantınızı yoxlayın.');
+          return;
+        }
+        consecutiveAudioErrorsRef.current += 1;
+        showAudioError('Bu ayənin səsi yüklənmədi. İnternet bağlantınızı yoxlayın.');
+
+        const shouldContinue = forceSurahContinuousRef.current || autoNextAyahRef.current;
+        if (shouldContinue && ayahNumber < surah.totalAyahs && consecutiveAudioErrorsRef.current < 3) {
+          startAyahPlayback(surah, ayahNumber + 1, forceSurahContinuousRef.current);
+        } else {
+          handleStopSurahAudio();
+        }
+      };
+
+      audio.onerror = handleAyahFailure;
+
+      audio.onended = () => {
+        if (playbackSessionRef.current !== sessionId) return;
+        consecutiveAudioErrorsRef.current = 0;
+
+        const shouldContinue = forceSurahContinuousRef.current || autoNextAyahRef.current;
+        if (shouldContinue && ayahNumber < surah.totalAyahs) {
+          startAyahPlayback(surah, ayahNumber + 1, forceSurahContinuousRef.current);
+        } else {
+          // End of surah reached: stop cleanly without looping back to ayah 1
+          setIsPlaying(false);
+          setIsPaused(false);
+          setIsSurahPlaying(false);
+          setPlayingAyah(null);
+          setAudioQueueIndex(null);
+        }
+      };
+
+      audio.play().catch((err) => {
+        if (playbackSessionRef.current !== sessionId) return;
+        console.warn('Audio play error:', err);
+        handleAyahFailure();
+      });
+    } catch (_err) {
+      handleStopSurahAudio();
+    }
+  };
+
+  // Master Surah Play / Pause / Resume handler
+  const handleToggleSurahPlay = () => {
+    if (!selectedSurah) return;
+
+    // 1. Currently playing -> Pause without losing queue or currentTime
+    if (isSurahPlaying && playingAyah !== null && audioRef.current) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+      setIsPaused(true);
+      setIsSurahPlaying(false);
+      return;
+    }
+
+    // 2. Currently paused on an ayah -> Resume from exact currentTime
+    if (!isSurahPlaying && isPaused && playingAyah !== null && audioRef.current && audioRef.current.src) {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        showAudioError('Bu ayənin səsi yüklənmədi. İnternet bağlantınızı yoxlayın.');
+        return;
+      }
+      forceSurahContinuousRef.current = true;
+      setIsPlaying(true);
+      setIsPaused(false);
+      setIsSurahPlaying(true);
+      audioRef.current.playbackRate = playbackSpeedRef.current;
+      audioRef.current.play().catch(() => {
+        startAyahPlayback(selectedSurah, playingAyah, true);
+      });
+      return;
+    }
+
+    // 3. Stopped -> Start full surah from Ayah 1 through totalAyahs
+    consecutiveAudioErrorsRef.current = 0;
+    startAyahPlayback(selectedSurah, 1, true);
+  };
+
+  // Individual Ayah Play / Pause button handler (always continues to the end of the surah by default)
+  const handlePlayAyahAudio = (_surahNumber: number, ayahNumber: number) => {
+    if (!selectedSurah) return;
+
     if (playingAyah === ayahNumber && audioRef.current) {
-      if (!audioRef.current.paused) {
+      if (isSurahPlaying) {
         audioRef.current.pause();
-        setPlayingAyah(null);
+        setIsPlaying(false);
+        setIsPaused(true);
+        setIsSurahPlaying(false);
+        return;
+      } else if (isPaused && audioRef.current.src) {
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          showAudioError('Bu ayənin səsi yüklənmədi. İnternet bağlantınızı yoxlayın.');
+          return;
+        }
+        setIsPlaying(true);
+        setIsPaused(false);
+        setIsSurahPlaying(true);
+        audioRef.current.playbackRate = playbackSpeedRef.current;
+        audioRef.current.play().catch(() => {
+          startAyahPlayback(selectedSurah, ayahNumber, true);
+        });
         return;
       }
     }
 
-    cleanupAudio();
+    consecutiveAudioErrorsRef.current = 0;
+    startAyahPlayback(selectedSurah, ayahNumber, true);
+  };
 
-    if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      setPlayingAyah(null);
-      setAudioErrorMsg('Qiraət bağlantısı əlçatmazdır (onlayn qiraət üçün internet tələb olunur).');
-      setTimeout(() => setAudioErrorMsg(null), 3500);
-      return;
-    }
+  const handlePrevAyahAudio = () => {
+    if (!selectedSurah || playingAyah === null || playingAyah <= 1) return;
+    consecutiveAudioErrorsRef.current = 0;
+    startAyahPlayback(selectedSurah, playingAyah - 1, true);
+  };
 
-    const sPad = surahNumber.toString().padStart(3, '0');
-    const aPad = ayahNumber.toString().padStart(3, '0');
-    const url = `https://everyayah.com/data/Alafasy_128kbps/${sPad}${aPad}.mp3`;
-
-    try {
-      const audio = new Audio(url);
-      audio.playbackRate = playbackSpeed;
-      audioRef.current = audio;
-
-      audio.onerror = () => {
-        setPlayingAyah(null);
-        setAudioErrorMsg('Qiraət bağlantısı əlçatmazdır.');
-        setTimeout(() => setAudioErrorMsg(null), 3000);
-      };
-
-      audio.play().catch((err) => {
-        console.warn('Audio play error:', err);
-        setPlayingAyah(null);
-        setAudioErrorMsg('Qiraət bağlantısı əlçatmazdır.');
-        setTimeout(() => setAudioErrorMsg(null), 3000);
-      });
-
-      audio.onended = () => {
-        if (autoNextAyah && selectedSurah && ayahNumber < selectedSurah.totalAyahs) {
-          handlePlayAyahAudio(surahNumber, ayahNumber + 1);
-          // scroll into view
-          const el = document.getElementById(`ayah-${ayahNumber + 1}`);
-          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        } else {
-          setPlayingAyah(null);
-        }
-      };
-
-      setPlayingAyah(ayahNumber);
-    } catch (_err) {
-      setPlayingAyah(null);
-    }
+  const handleNextAyahAudio = () => {
+    if (!selectedSurah || playingAyah === null || playingAyah >= selectedSurah.totalAyahs) return;
+    consecutiveAudioErrorsRef.current = 0;
+    startAyahPlayback(selectedSurah, playingAyah + 1, true);
   };
 
   const handleCycleSpeed = () => {
-    const speeds = [0.75, 1.0, 1.25, 1.5];
+    const speeds = [0.75, 1.0, 1.25, 1.5, 2.0];
     const nextIdx = (speeds.indexOf(playbackSpeed) + 1) % speeds.length;
     const next = speeds[nextIdx];
     setPlaybackSpeed(next);
+    playbackSpeedRef.current = next;
     if (audioRef.current) {
       audioRef.current.playbackRate = next;
     }
@@ -297,6 +530,27 @@ export const QuranTab: React.FC<QuranTabProps> = ({
     const matchesFilter = filterType === 'all' || surah.revelationType === filterType;
     return matchesSearch && matchesFilter;
   });
+
+  // Cross-surah ayah text search across preloaded + IndexedDB cached surahs
+  const matchedAyahsAcrossSurahs = React.useMemo(() => {
+    const q = toAzLower(searchQuery.trim());
+    if (q.length < 2) return [];
+    const results: Array<{ surah: Surah; ayah: Ayah }> = [];
+    for (const surah of ALL_SURAHS) {
+      const surahAyahs = cachedAyahsMap[surah.number];
+      if (!surahAyahs) continue;
+      for (const ayah of surahAyahs) {
+        if (
+          toAzLower(ayah.translation).includes(q) ||
+          ayah.arabic.includes(searchQuery.trim())
+        ) {
+          results.push({ surah, ayah });
+          if (results.length >= 12) return results;
+        }
+      }
+    }
+    return results;
+  }, [searchQuery, cachedAyahsMap]);
 
   // Filtering ayahs inside open surah (Azerbaijani locale-aware)
   const filteredAyahs = ayahs.filter((ayah) => {
@@ -468,7 +722,7 @@ export const QuranTab: React.FC<QuranTabProps> = ({
                           : 'bg-stone-50 dark:bg-emerald-950/40 text-stone-500 border-stone-200 dark:border-emerald-800/40'
                       }`}
                     >
-                      {autoNextAyah ? 'Avto-növbəti: Açıq' : 'Avto-növbəti: Qapalı'}
+                      {autoNextAyah ? 'Ayələri ardıcıl oxu: Açıq' : 'Ayələri ardıcıl oxu: Qapalı'}
                     </button>
 
                     <button
@@ -510,6 +764,119 @@ export const QuranTab: React.FC<QuranTabProps> = ({
                 </div>
               </div>
             )}
+
+            {/* Full Surah Audio Player Bar */}
+            <div className="mt-4 pt-4 border-t border-emerald-600/40 flex flex-col items-center gap-2.5">
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <button
+                  id="surah-play-btn"
+                  onClick={handleToggleSurahPlay}
+                  disabled={loadingAyahs || !!loadError}
+                  aria-label={
+                    isSurahPlaying
+                      ? 'Quranı dayandır'
+                      : playingAyah !== null
+                      ? 'Davam et'
+                      : 'Surəni dinlə'
+                  }
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-emerald-950 font-bold text-xs sm:text-sm shadow-sm transition cursor-pointer disabled:opacity-50"
+                >
+                  {isSurahPlaying ? (
+                    <>
+                      <Pause className="w-4 h-4 fill-current" />
+                      <span>Dayandır</span>
+                    </>
+                  ) : playingAyah !== null ? (
+                    <>
+                      <Play className="w-4 h-4 fill-current" />
+                      <span>Davam et</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-4 h-4 fill-current" />
+                      <span>Surəni dinlə</span>
+                    </>
+                  )}
+                </button>
+
+                {playingAyah !== null && (
+                  <>
+                    <button
+                      id="surah-prev-ayah-btn"
+                      onClick={handlePrevAyahAudio}
+                      disabled={playingAyah <= 1}
+                      className="flex items-center gap-1 px-2.5 py-2 rounded-xl bg-emerald-900/70 hover:bg-emerald-900 text-amber-200 border border-amber-400/30 text-xs font-semibold transition disabled:opacity-40 cursor-pointer"
+                      title="Əvvəlki ayə"
+                      aria-label="Əvvəlki ayə"
+                    >
+                      <SkipBack className="w-4 h-4" />
+                      <span className="hidden sm:inline">Əvvəlki ayə</span>
+                    </button>
+
+                    <button
+                      id="surah-next-ayah-btn"
+                      onClick={handleNextAyahAudio}
+                      disabled={playingAyah >= selectedSurah.totalAyahs}
+                      className="flex items-center gap-1 px-2.5 py-2 rounded-xl bg-emerald-900/70 hover:bg-emerald-900 text-amber-200 border border-amber-400/30 text-xs font-semibold transition disabled:opacity-40 cursor-pointer"
+                      title="Növbəti ayə"
+                      aria-label="Növbəti ayə"
+                    >
+                      <SkipForward className="w-4 h-4" />
+                      <span className="hidden sm:inline">Növbəti ayə</span>
+                    </button>
+
+                    <button
+                      id="surah-stop-btn"
+                      onClick={handleStopSurahAudio}
+                      aria-label="Tam dayandır"
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-950/80 hover:bg-emerald-950 text-amber-200 border border-amber-400/30 text-xs font-semibold transition cursor-pointer"
+                      title="Qiraəti tam dayandır"
+                    >
+                      <Square className="w-3.5 h-3.5 fill-current" />
+                      <span>Tam dayandır</span>
+                    </button>
+                  </>
+                )}
+
+                <button
+                  onClick={handleCycleSpeed}
+                  aria-label="Qiraət sürəti"
+                  className="px-2.5 py-2 rounded-xl bg-emerald-900/60 hover:bg-emerald-900 text-amber-300 border border-emerald-500/30 text-xs font-bold transition cursor-pointer"
+                  title="Qiraət sürəti (0.75x, 1x, 1.25x, 1.5x, 2x)"
+                >
+                  {playbackSpeed}x
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-center gap-2 text-[11px] text-emerald-100/90">
+                <span>Qari: Mishary Rashid Alafasy</span>
+                <span>•</span>
+                <span className="px-1.5 py-0.5 rounded bg-emerald-900/60 text-amber-200 text-[10px]">
+                  Onlayn qiraət
+                </span>
+              </div>
+
+              {playingAyah !== null && (
+                <div
+                  id="surah-audio-progress"
+                  data-audio-url={currentAudioUrl}
+                  data-is-playing={isPlaying}
+                  className="w-full max-w-md bg-emerald-950/50 border border-amber-400/30 rounded-xl px-3 py-2 text-xs text-amber-200 flex items-center justify-between gap-2"
+                >
+                  <span className="font-semibold flex items-center gap-1.5">
+                    <Volume2 className={`w-4 h-4 text-amber-400 ${isSurahPlaying ? 'animate-pulse' : ''}`} />
+                    <span>
+                      {isSurahPlaying
+                        ? `${selectedSurah.transliteration} • Ayə ${playingAyah} oxunur`
+                        : `${selectedSurah.transliteration} • Ayə ${playingAyah} (fasilə)`}
+                    </span>
+                  </span>
+                  <span className="font-mono font-bold text-amber-300" data-queue-index={audioQueueIndex ?? 0}>
+                    {playingAyah} / {selectedSurah.totalAyahs}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* In-surah Ayah Search Filter */}
@@ -603,10 +970,20 @@ export const QuranTab: React.FC<QuranTabProps> = ({
                               ? 'bg-amber-500 text-white shadow-xs'
                               : 'text-stone-600 dark:text-stone-300 hover:text-emerald-800 dark:hover:text-emerald-200 hover:bg-stone-100 dark:hover:bg-emerald-900/40'
                           }`}
-                          title={isPlaying ? 'Səsi dayandır' : 'Ayənin qiraətini dinlə'}
-                          aria-label="Ayə qiraəti"
+                          title={
+                            isPlaying && isSurahPlaying
+                              ? 'Qiraəti fasiləyə qoy'
+                              : isPlaying && !isSurahPlaying
+                              ? 'Qiraətə davam et'
+                              : 'Ayəni dinlə'
+                          }
+                          aria-label="Ayəni dinlə"
                         >
-                          {isPlaying ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                          {isPlaying && isSurahPlaying ? (
+                            <Pause className="w-4 h-4" />
+                          ) : (
+                            <Volume2 className="w-4 h-4" />
+                          )}
                         </button>
 
                         {/* Copy Button */}
@@ -725,7 +1102,7 @@ export const QuranTab: React.FC<QuranTabProps> = ({
                 <span>Qurani-Kərim</span>
               </h2>
               <p className="text-xs text-stone-600 dark:text-stone-300">
-                114 Surə • 30 Cüz • {cachedSurahs.size} surə offline saxlanılıb (açılan surələr avtomatik yadda saxlanılır)
+                114 Surə • 30 Cüz • Offline hazır: {cachedSurahs.size} / 114
               </p>
             </div>
           </div>
@@ -768,7 +1145,7 @@ export const QuranTab: React.FC<QuranTabProps> = ({
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Surənin adını, ərəbcə adını və ya nömrəsini axtarın (məs. Fatihə, Yasin, 36)..."
+                placeholder="Surə adını, nömrəsini və ya ayə mətnini axtarın (məs. Fatihə, Yasin, 36, mərhəmət)..."
                 className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white dark:bg-[#0c1e15] border border-stone-200/80 dark:border-emerald-800/40 text-xs sm:text-sm text-stone-900 dark:text-stone-100 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#064e3b] dark:focus:ring-amber-400 shadow-xs"
               />
               {searchQuery && (
@@ -815,6 +1192,34 @@ export const QuranTab: React.FC<QuranTabProps> = ({
               </button>
             </div>
           </div>
+
+          {/* Cross-surah Matched Ayahs Section (when searching by ayah text) */}
+          {matchedAyahsAcrossSurahs.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-xs font-bold text-emerald-900 dark:text-amber-400">
+                Ayə mətni üzrə uyğun nəticələr ({matchedAyahsAcrossSurahs.length}):
+              </div>
+              <div className="space-y-2">
+                {matchedAyahsAcrossSurahs.map(({ surah, ayah }) => (
+                  <button
+                    key={`${surah.number}-${ayah.numberInSurah}`}
+                    onClick={() => handleSelectSurah(surah, ayah.numberInSurah)}
+                    className="w-full text-left p-3 rounded-2xl bg-white dark:bg-[#0c1e15] border border-emerald-600/30 dark:border-amber-400/30 hover:border-emerald-600 dark:hover:border-amber-400 shadow-xs transition space-y-1 cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between text-xs font-bold text-[#064e3b] dark:text-amber-400">
+                      <span>
+                        {surah.number}. {surah.transliteration} surəsi • {ayah.numberInSurah}-ci ayə
+                      </span>
+                      <ChevronRight className="w-4 h-4" />
+                    </div>
+                    <p className="text-xs text-stone-700 dark:text-stone-200 line-clamp-2">
+                      {ayah.translation}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* 114 Surahs Grid List */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -864,9 +1269,9 @@ export const QuranTab: React.FC<QuranTabProps> = ({
             })}
           </div>
 
-          {filteredSurahs.length === 0 && (
+          {filteredSurahs.length === 0 && matchedAyahsAcrossSurahs.length === 0 && (
             <div className="py-12 text-center text-stone-500">
-              Axtarışa uyğun surə tapılmadı.
+              Axtarışa uyğun surə və ya ayə tapılmadı.
             </div>
           )}
         </div>

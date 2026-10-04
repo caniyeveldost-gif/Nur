@@ -20,7 +20,19 @@ dotenv.config();
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
-app.use(express.json({ limit: "100kb" }));
+app.use(express.json({ limit: "32kb" }));
+
+// Allow cross-origin requests on /api/* so the Capacitor Android WebView (https://localhost) can call the production HTTPS backend
+app.use("/api", (req: Request, res: Response, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") {
+    res.status(204).end();
+    return;
+  }
+  next();
+});
 
 // In-memory sliding window rate limiter for AI chat (max 25 requests per minute per IP)
 const ipRateLimits = new Map<string, { count: number; resetTime: number }>();
@@ -375,14 +387,18 @@ AŞAĞIDAKİ QAYDALARA QƏTİYYƏTLƏ ƏMƏL ET:
 10. Cavabın ən sonunda bu xəbərdarlıq qeydini əlavə et:
 "⚠️ Qeyd: Cavabda qeyd olunan istinadların (ayə və hədis nömrələrinin) dəqiqliyini mötəbər dini kitablardan və ya rəsmi mənbələrdən ayrıca yoxlamaq tövsiyə olunur."`;
 
-    // Limit conversation history to latest 10 messages to prevent payload flooding
-    const safeHistory = Array.isArray(history) ? history.slice(-10) : [];
+    // Limit conversation history to latest 6 messages (max 1000 chars each) to prevent payload flooding
+    const safeHistory = Array.isArray(history)
+      ? history
+          .filter((m) => m && typeof m === "object")
+          .slice(-6)
+      : [];
 
     const contents = safeHistory.length > 0
       ? [
-          ...safeHistory.map((m: { role: string; text: string }) => ({
+          ...safeHistory.map((m: { role?: string; text?: string }) => ({
             role: m.role === "assistant" ? "model" : "user",
-            parts: [{ text: String(m.text || "").slice(0, 1500) }],
+            parts: [{ text: String(m.text || "").slice(0, 1000) }],
           })),
           {
             role: "user",
@@ -403,15 +419,15 @@ AŞAĞIDAKİ QAYDALARA QƏTİYYƏTLƏ ƏMƏL ET:
 
       const reply = response.text || getLocalIslamicFallbackResponse(trimmedQuestion);
       res.json({ reply });
-    } catch (genError) {
-      console.warn("Gemini model generation error, falling back to local knowledge:", genError);
+    } catch (_genError) {
+      console.warn("[Nur AI] Gemini generation unavailable, using local fallback.");
       const fallbackReply = getLocalIslamicFallbackResponse(trimmedQuestion);
       res.json({ reply: fallbackReply });
     }
-  } catch (error: unknown) {
-    console.error("Gemini religious-chat error:", error);
-    // Never crash or leave client hanging, return local knowledge base reply
-    const questionText = typeof req.body?.question === "string" ? req.body.question : "";
+  } catch (_error: unknown) {
+    console.error("[Nur AI] Request processing error, using local fallback.");
+    // Never crash or expose internal error details/secrets to client
+    const questionText = typeof req.body?.question === "string" ? req.body.question.slice(0, 1000) : "";
     res.json({ reply: getLocalIslamicFallbackResponse(questionText) });
   }
 });

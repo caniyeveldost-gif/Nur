@@ -1,6 +1,7 @@
 import { Ayah, CityPrayerData } from '../types';
 import { PRELOADED_SURAHS, ALL_SURAHS } from '../data/surahs';
 import { getSurahFromIndexedDB, saveSurahToIndexedDB } from './quranDb';
+import { isNativePlatform, resolveApiEndpoint } from './capacitorBridge';
 import {
   Coordinates,
   CalculationMethod,
@@ -246,14 +247,15 @@ export async function fetchPrayerTimes(
     }
   } catch (_cacheErr) {}
 
-  // Try API with 3.5s timeout
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3500);
+  // Try API with 3.5s timeout when running on web (on native Android APK, use direct local astronomical calculation)
+  if (!isNativePlatform()) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3500);
 
-    const url = `/api/prayer-times?city=${encodeURIComponent(cityKey)}&date=${dateStr}&method=${methodName}&madhab=${madhabName}`;
-    const res = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeoutId);
+      const url = `/api/prayer-times?city=${encodeURIComponent(cityKey)}&date=${dateStr}&method=${methodName}&madhab=${madhabName}`;
+      const res = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
 
     if (res.ok) {
       const data = await res.json();
@@ -299,8 +301,9 @@ export async function fetchPrayerTimes(
         return result;
       }
     }
-  } catch (_e) {
-    // Fall through to local calculation
+    } catch (_e) {
+      // Fall through to local calculation
+    }
   }
 
   // Pure client-side astronomical calculation fallback
@@ -431,23 +434,41 @@ Allah-Təala buyurur: "Ey iman gətirənlər! Allaha səmimi-qəlbdən tövbə e
 - Səhih Müslim: Hədis № 2758.`,
 };
 
-// Nur AI query service
+// Nur AI query service (Web: '/api/gemini/religious-chat'; Android APK: 'https://<VITE_API_BASE_URL>/api/gemini/religious-chat' with offline/error local fallback)
 export async function askNurAi(question: string, history: { role: string; text: string }[] = []): Promise<string> {
-  try {
-    const res = await fetch('/api/gemini/religious-chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question, history }),
-    });
+  const safeQuestion = question.trim().slice(0, 1000);
+  const safeHistory = Array.isArray(history)
+    ? history.slice(-6).map((item) => ({
+        role: item.role === 'assistant' ? 'assistant' : 'user',
+        text: String(item.text || '').slice(0, 1000),
+      }))
+    : [];
 
-    if (res.ok) {
-      const data = await res.json();
-      if (data.reply) {
-        return data.reply;
+  const isOnline = typeof navigator === 'undefined' ? true : navigator.onLine;
+  const endpoint = resolveApiEndpoint('/api/gemini/religious-chat');
+
+  if (isOnline && endpoint) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: safeQuestion, history: safeHistory }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data && typeof data.reply === 'string' && data.reply.trim().length > 0) {
+          return data.reply;
+        }
       }
+    } catch (_err) {
+      // Backend unreachable or network error -> fall through to FALLBACK_AI_KNOWLEDGE
     }
-  } catch (err) {
-    console.warn("Nur AI API error, falling back to local religious knowledge base:", err);
   }
 
   // Keyword-based fallback matching

@@ -17,6 +17,11 @@ import {
   cancelDailyPrayerNotifications,
   registerServiceWorker,
 } from './services/notificationService';
+import {
+  initNativePlatformUI,
+  syncNativeStatusBarTheme,
+  registerNativeBackButton,
+} from './services/capacitorBridge';
 import { safeStorage } from './services/storageHelper';
 import { BookmarkItem, UserSettings, TabNavigationParams, NavigateTabFn } from './types';
 
@@ -78,7 +83,47 @@ export default function App() {
       const meta = document.querySelector('meta[name="theme-color"]');
       if (meta) meta.setAttribute('content', '#064e3b');
     }
+    void syncNativeStatusBarTheme(settings.theme === 'dark');
   }, [settings]);
+
+  // Initialize native Android StatusBar, Keyboard, and SplashScreen on mount
+  useEffect(() => {
+    void initNativePlatformUI(settings.theme === 'dark');
+  }, []);
+
+  // Register Android hardware/system Back button handler
+  useEffect(() => {
+    const cleanupBack = registerNativeBackButton(() => {
+      if (isSearchModalOpen) {
+        setIsSearchModalOpen(false);
+        return true;
+      }
+      if (isCalendarModalOpen) {
+        setIsCalendarModalOpen(false);
+        return true;
+      }
+      if (isPrayerModalOpen) {
+        setIsPrayerModalOpen(false);
+        return true;
+      }
+      if (activeTab === 'quran') {
+        const quranBackBtn = document.getElementById('quran-back-btn') as HTMLButtonElement | null;
+        if (quranBackBtn) {
+          quranBackBtn.click();
+          return true;
+        }
+      }
+      if (activeTab !== 'home') {
+        setActiveTab('home');
+        return true;
+      }
+      return false;
+    });
+
+    return () => {
+      cleanupBack();
+    };
+  }, [activeTab, isPrayerModalOpen, isCalendarModalOpen, isSearchModalOpen]);
 
   // Sync bookmarks to localStorage
   useEffect(() => {

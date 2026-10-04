@@ -1,5 +1,7 @@
+import { LocalNotifications } from '@capacitor/local-notifications';
 import { CityPrayerData } from '../types';
 import { getBakuDateString, calculateLocalPrayerTimes } from './apiService';
+import { isNativePlatform } from './capacitorBridge';
 
 export interface PrayerNotificationSettings {
   enabled: boolean;
@@ -22,8 +24,19 @@ const DEFAULT_SETTINGS: PrayerNotificationSettings = {
 
 let activeCheckInterval: number | null = null;
 let activeTimeouts: number[] = [];
+let nativePermissionState: 'granted' | 'denied' | 'default' = 'default';
 const inFlightNotificationKeys = new Set<string>();
 const SLEEP_TOLERANCE_MS = 15 * 60 * 1000; // 15 minutes tolerance after device sleep/tab suspend
+
+if (typeof window !== 'undefined' && isNativePlatform()) {
+  LocalNotifications.checkPermissions()
+    .then((res) => {
+      if (res.display === 'granted') nativePermissionState = 'granted';
+      else if (res.display === 'denied') nativePermissionState = 'denied';
+      else nativePermissionState = 'default';
+    })
+    .catch(() => {});
+}
 
 // Get saved notification settings
 export function getPrayerNotificationSettings(): PrayerNotificationSettings {
@@ -55,9 +68,9 @@ export function savePrayerNotificationSettings(settings: PrayerNotificationSetti
   }
 }
 
-// Register Service Worker (Active in production; in development unregisters any stale SW to avoid HMR interference)
+// Register Service Worker (Active in web production; skipped on native Android APK and in development)
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
-  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+  if (typeof window === 'undefined' || isNativePlatform() || !('serviceWorker' in navigator)) {
     return null;
   }
   if (import.meta.env.DEV) {
@@ -80,14 +93,37 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
 
 // Get notification permission status
 export function getNotificationPermission(): 'granted' | 'denied' | 'default' | 'unsupported' {
+  if (isNativePlatform()) {
+    return nativePermissionState;
+  }
   if (typeof window === 'undefined' || !('Notification' in window)) {
     return 'unsupported';
   }
   return Notification.permission;
 }
 
-// Request permission
+// Request permission (supports Android 13+ POST_NOTIFICATIONS via Capacitor LocalNotifications and Web Notification API)
 export async function requestNotificationPermission(): Promise<boolean> {
+  if (isNativePlatform()) {
+    try {
+      const check = await LocalNotifications.checkPermissions();
+      if (check.display === 'granted') {
+        nativePermissionState = 'granted';
+        return true;
+      }
+      const req = await LocalNotifications.requestPermissions();
+      if (req.display === 'granted') {
+        nativePermissionState = 'granted';
+        return true;
+      }
+      nativePermissionState = req.display === 'denied' ? 'denied' : 'default';
+      return false;
+    } catch (err) {
+      console.warn('Capacitor LocalNotifications permission error:', err);
+      return false;
+    }
+  }
+
   if (typeof window === 'undefined' || !('Notification' in window)) {
     return false;
   }
@@ -140,9 +176,44 @@ export function playNotificationChime(): void {
   }
 }
 
-// Dispatch a notification using Service Worker if available, or Notification API
+// Dispatch a notification using Capacitor LocalNotifications on Android, Service Worker on PWA, or Notification API
 export async function dispatchNotification(title: string, body: string, tag: string): Promise<boolean> {
-  if (typeof window === 'undefined' || !('Notification' in window) || Notification.permission !== 'granted') {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  if (isNativePlatform()) {
+    try {
+      const perm = await LocalNotifications.checkPermissions();
+      if (perm.display !== 'granted') {
+        return false;
+      }
+      nativePermissionState = 'granted';
+      const settings = getPrayerNotificationSettings();
+      if (settings.sound) {
+        playNotificationChime();
+      }
+      const numericId = Math.abs(
+        tag.split('').reduce((acc, ch) => ((acc << 5) - acc + ch.charCodeAt(0)) | 0, 0)
+      ) || Math.floor(Math.random() * 100000) + 1;
+      await LocalNotifications.schedule({
+        notifications: [
+          {
+            id: numericId,
+            title,
+            body,
+            schedule: { at: new Date(Date.now() + 200) },
+          },
+        ],
+      });
+      return true;
+    } catch (nativeErr) {
+      console.warn('Native LocalNotifications dispatch failed:', nativeErr);
+      return false;
+    }
+  }
+
+  if (!('Notification' in window) || Notification.permission !== 'granted') {
     return false;
   }
 
@@ -310,6 +381,19 @@ export function cancelDailyPrayerNotifications(): void {
     clearInterval(activeCheckInterval);
     activeCheckInterval = null;
   }
+
+  if (isNativePlatform()) {
+    LocalNotifications.getPending()
+      .then((pending) => {
+        const prayerIds = pending.notifications
+          .filter((n) => n.id >= 7001 && n.id <= 7010)
+          .map((n) => ({ id: n.id }));
+        if (prayerIds.length > 0) {
+          return LocalNotifications.cancel({ notifications: prayerIds });
+        }
+      })
+      .catch(() => {});
+  }
 }
 
 // Clean up notification idempotency records older than 7 days to prevent localStorage bloat
@@ -345,7 +429,10 @@ export function scheduleDailyPrayerNotifications(prayerData: CityPrayerData): vo
   cleanOldNotificationHistory();
 
   const settings = getPrayerNotificationSettings();
-  if (!settings.enabled || Notification.permission !== 'granted') {
+  const hasPermission = isNativePlatform()
+    ? nativePermissionState === 'granted'
+    : typeof Notification !== 'undefined' && Notification.permission === 'granted';
+  if (!settings.enabled || !hasPermission) {
     return;
   }
 
@@ -429,20 +516,55 @@ export function scheduleDailyPrayerNotifications(prayerData: CityPrayerData): vo
   ];
 
   const now = new Date();
+  const nativeScheduleItems: Array<{
+    id: number;
+    title: string;
+    body: string;
+    schedule: { at: Date; allowWhileIdle: boolean };
+  }> = [];
 
-  for (const item of prayersToSchedule) {
-    if (!item.enabled) continue;
+  prayersToSchedule.forEach((item, idx) => {
+    if (!item.enabled) return;
 
     const targetDate = getPrayerTargetTime(item.time, settings.offsetMinutes, false);
     const delay = targetDate.getTime() - now.getTime();
 
-    // If within today and delay is under max 32-bit int (~24.8 days)
-    if (delay > 0 && delay < 86400000) {
+    if (isNativePlatform() && delay > 1000 && delay < 86400000) {
+      let nTitle = '';
+      let nBody = '';
+      if (item.key === 'fajr') {
+        nTitle = '🌅 Sübh Namazı Vaxtıdır';
+        nBody = `${cityName} üçün Sübh namazının vaxtı daxil oldu (${item.time}). Namaz qılmaq yuxudan xeyirlidir!`;
+      } else if (item.key === 'maghrib') {
+        nTitle = '🌇 Məğrib (Şam / İftar) Vaxtıdır';
+        nBody = `${cityName} üçün Məğrib namazı və iftar vaxtı (${item.time}) daxil oldu. Allah ibadət və dualarınızı qəbul etsin!`;
+      } else if (item.key === 'dhuhr') {
+        nTitle = '☀️ Zöhr Namazı Vaxtıdır';
+        nBody = `${cityName} üçün Zöhr namazının vaxtı (${item.time}) daxil oldu.`;
+      } else if (item.key === 'asr') {
+        nTitle = '🌤️ Əsr Namazı Vaxtıdır';
+        nBody = `${cityName} üçün Əsr namazının vaxtı (${item.time}) daxil oldu.`;
+      } else if (item.key === 'isha') {
+        nTitle = '🌙 İşa (Xuftən) Namazı Vaxtıdır';
+        nBody = `${cityName} üçün İşa namazının vaxtı (${item.time}) daxil oldu.`;
+      }
+      nativeScheduleItems.push({
+        id: 7001 + idx,
+        title: nTitle,
+        body: nBody,
+        schedule: { at: targetDate, allowWhileIdle: true },
+      });
+    } else if (delay > 0 && delay < 86400000) {
+      // Web / PWA timer schedule
       const timeoutId = window.setTimeout(() => {
         void triggerPrayerNotification(item.key, item.time);
       }, delay);
       activeTimeouts.push(timeoutId);
     }
+  });
+
+  if (isNativePlatform() && nativeScheduleItems.length > 0) {
+    LocalNotifications.schedule({ notifications: nativeScheduleItems }).catch(() => {});
   }
 
   let lastCheckTime = Date.now();

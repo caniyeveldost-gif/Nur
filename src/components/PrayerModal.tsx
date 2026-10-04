@@ -434,7 +434,7 @@ export const PrayerModal: React.FC<PrayerModalProps> = ({
               {/* Informative transparency notice on local device notification behavior */}
               <div className="p-2.5 rounded-xl bg-emerald-500/10 dark:bg-emerald-950/30 text-stone-600 dark:text-stone-300 text-[11px] leading-relaxed border border-emerald-500/20">
                 <span className="font-semibold text-emerald-800 dark:text-emerald-300">ℹ️ Cihazdaxili namaz xatırlatmaları: </span>
-                Xatırlatmalar brauzer/tətbiqin imkanlarından istifadə edərək cihaz daxilində planlaşdırılır. Brauzerin və cihazın enerji qənaəti və arxa plan məhdudiyyətləri səbəbindən bəzi hallarda gecikmə və ya dayandırılma ola bilər.
+                Xatırlatmalar brauzer/tətbiqin imkanlarından istifadə edərək cihaz daxilində planlaşdırılır. Brauzer və cihazın arxa plan məhdudiyyətləri səbəbindən bəzi hallarda gecikmə və ya dayandırılma ola bilər.
               </div>
             </div>
           )}
