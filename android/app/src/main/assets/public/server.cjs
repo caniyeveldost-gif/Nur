@@ -32,7 +32,33 @@ var import_genai = require("@google/genai");
 var import_adhan = require("adhan");
 import_dotenv.default.config();
 var app = (0, import_express.default)();
-var PORT = Number(process.env.PORT) || 3e3;
+function resolveServerPort() {
+  const args = process.argv.slice(2);
+  const portArgIdx = args.findIndex((a) => a === "--port" || a === "-p");
+  if (portArgIdx !== -1 && args[portArgIdx + 1]) {
+    const parsed = Number(args[portArgIdx + 1]);
+    if (!Number.isNaN(parsed) && parsed > 0) return parsed;
+  }
+  const npmConfigPort = Number(process.env.npm_config_port);
+  if (!Number.isNaN(npmConfigPort) && npmConfigPort > 0) {
+    return npmConfigPort;
+  }
+  const envPort = Number(process.env.PORT);
+  const nginxPort = Number(process.env.NGINX_PORT);
+  const defaultAppPort = Number(process.env.DEFAULT_APP_PORT);
+  if (process.env.NODE_ENV !== "production" && !Number.isNaN(envPort) && !Number.isNaN(nginxPort) && envPort === nginxPort && !Number.isNaN(defaultAppPort) && defaultAppPort > 0) {
+    return defaultAppPort;
+  }
+  if (!Number.isNaN(envPort) && envPort > 0) {
+    return envPort;
+  }
+  if (!Number.isNaN(defaultAppPort) && defaultAppPort > 0) {
+    return defaultAppPort;
+  }
+  return 3e3;
+}
+var PORT = resolveServerPort();
+var HOST = "0.0.0.0";
 app.use(import_express.default.json({ limit: "32kb" }));
 app.use("/api", (req, res, next) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -241,7 +267,7 @@ M\u0259sl\u0259h\u0259tl\u0259r:
 \u26A0\uFE0F Qeyd: Cavabda qeyd olunan istinadlar\u0131n (ay\u0259 v\u0259 h\u0259dis n\xF6mr\u0259l\u0259rinin) d\u0259qiqliyini m\xF6t\u0259b\u0259r dini kitablardan v\u0259 ya r\u0259smi m\u0259nb\u0259l\u0259rd\u0259n ayr\u0131ca yoxlamaq t\xF6vsiy\u0259 olunur.`;
 }
 app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", app: "Nur", time: (/* @__PURE__ */ new Date()).toISOString() });
+  res.json({ status: "ok" });
 });
 var AZ_CITIES = {
   Baki: { name: "Bak\u0131", lat: 40.4093, lng: 49.8671 },
@@ -387,21 +413,39 @@ A\u015EA\u011EIDAK\u0130 QAYDALARA Q\u018FT\u0130YY\u018FTL\u018F \u018FM\u018FL
 });
 async function startServer() {
   const server = import_http.default.createServer(app);
+  const distPath = import_path.default.join(process.cwd(), "dist");
+  const indexPath = import_path.default.join(distPath, "index.html");
+  const staticDistMiddleware = import_express.default.static(distPath, { maxAge: "1d", index: false });
   if (process.env.NODE_ENV !== "production") {
-    const vite = await (0, import_vite.createServer)({
-      server: {
-        middlewareMode: true,
-        hmr: {
-          server
+    try {
+      const vite = await (0, import_vite.createServer)({
+        server: {
+          middlewareMode: true,
+          allowedHosts: true,
+          hmr: false,
+          watch: {
+            ignored: ["**/android/**", "**/dist/**"]
+          }
+        },
+        optimizeDeps: {
+          entries: ["index.html"]
+        },
+        appType: "spa"
+      });
+      app.use(vite.middlewares);
+    } catch (err) {
+      console.error("[Nur Server] Vite initialization error:", err);
+      app.use(staticDistMiddleware);
+      app.get("*", (_req, res) => {
+        if (import_fs.default.existsSync(indexPath)) {
+          res.sendFile(indexPath);
+        } else {
+          res.status(500).send("Vite initialization failed and dist/index.html was not found.");
         }
-      },
-      appType: "spa"
-    });
-    app.use(vite.middlewares);
+      });
+    }
   } else {
-    const distPath = import_path.default.join(process.cwd(), "dist");
-    const indexPath = import_path.default.join(distPath, "index.html");
-    app.use(import_express.default.static(distPath, { maxAge: "1d", index: false }));
+    app.use(staticDistMiddleware);
     app.get("*", (_req, res) => {
       if (import_fs.default.existsSync(indexPath)) {
         res.sendFile(indexPath);
@@ -410,8 +454,8 @@ async function startServer() {
       }
     });
   }
-  server.listen(PORT, "0.0.0.0", () => {
-    console.log(`Nur app server running on http://localhost:${PORT}`);
+  server.listen(PORT, HOST, () => {
+    console.log(`Nur app server running on http://${HOST}:${PORT}`);
   });
 }
 startServer();

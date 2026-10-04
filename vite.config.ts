@@ -10,4 +10,21 @@ export default defineConfig({
       '@': path.resolve(import.meta.dirname, '.'),
     },
   },
+  optimizeDeps: {
+    entries: ['index.html'],
+  },
+  server: {
+    port: Number(process.env.PORT) || 3000,
+    host: '0.0.0.0',
+    allowedHosts: true,
+    hmr: false,
+    watch: {
+      ignored: ['**/android/**', '**/dist/**'],
+    },
+  },
+  preview: {
+    port: Number(process.env.PORT) || 3000,
+    host: '0.0.0.0',
+    allowedHosts: true,
+  },
 });

@@ -1,7 +1,7 @@
 // Service Worker for "Nur" Islamic Web Application
 // Production PWA caching and offline resilience
 
-const CACHE_NAME = 'nur-cache-v2';
+const CACHE_NAME = 'nur-cache-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

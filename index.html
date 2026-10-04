@@ -17,6 +17,13 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Nur" />
     <link rel="manifest" href="/manifest.json" />
+    <script>
+      try {
+        sessionStorage.removeItem("warmup_start_time");
+        sessionStorage.removeItem("warmup_last_reload_time");
+        sessionStorage.removeItem("warmup_failed_sent");
+      } catch (_e) {}
+    </script>
     <!-- Google Fonts for Amiri (Quranic Arabic) and Plus Jakarta Sans -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

@@ -18,7 +18,50 @@ import {
 dotenv.config();
 
 const app = express();
-const PORT = Number(process.env.PORT) || 3000;
+
+function resolveServerPort(): number {
+  const args = process.argv.slice(2);
+  const portArgIdx = args.findIndex((a) => a === "--port" || a === "-p");
+  if (portArgIdx !== -1 && args[portArgIdx + 1]) {
+    const parsed = Number(args[portArgIdx + 1]);
+    if (!Number.isNaN(parsed) && parsed > 0) return parsed;
+  }
+
+  const npmConfigPort = Number(process.env.npm_config_port);
+  if (!Number.isNaN(npmConfigPort) && npmConfigPort > 0) {
+    return npmConfigPort;
+  }
+
+  const envPort = Number(process.env.PORT);
+  const nginxPort = Number(process.env.NGINX_PORT);
+  const defaultAppPort = Number(process.env.DEFAULT_APP_PORT);
+
+  // In AI Studio preview container, Nginx listens on NGINX_PORT (8080) and proxies to DEFAULT_APP_PORT (3000).
+  // Avoid colliding with Nginx on 8080 if PORT=8080 was inherited from the container environment in dev mode.
+  if (
+    process.env.NODE_ENV !== "production" &&
+    !Number.isNaN(envPort) &&
+    !Number.isNaN(nginxPort) &&
+    envPort === nginxPort &&
+    !Number.isNaN(defaultAppPort) &&
+    defaultAppPort > 0
+  ) {
+    return defaultAppPort;
+  }
+
+  if (!Number.isNaN(envPort) && envPort > 0) {
+    return envPort;
+  }
+
+  if (!Number.isNaN(defaultAppPort) && defaultAppPort > 0) {
+    return defaultAppPort;
+  }
+
+  return 3000;
+}
+
+const PORT = resolveServerPort();
+const HOST = "0.0.0.0";
 
 app.use(express.json({ limit: "32kb" }));
 
@@ -251,7 +294,7 @@ Məsləhətlər:
 
 // Health check endpoint
 app.get("/api/health", (_req: Request, res: Response) => {
-  res.json({ status: "ok", app: "Nur", time: new Date().toISOString() });
+  res.json({ status: "ok" });
 });
 
 // Azerbaijani city coordinates for astronomical calculations
@@ -434,22 +477,40 @@ AŞAĞIDAKİ QAYDALARA QƏTİYYƏTLƏ ƏMƏL ET:
 
 async function startServer() {
   const server = http.createServer(app);
+  const distPath = path.join(process.cwd(), "dist");
+  const indexPath = path.join(distPath, "index.html");
+  const staticDistMiddleware = express.static(distPath, { maxAge: "1d", index: false });
 
   if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: {
-        middlewareMode: true,
-        hmr: {
-          server,
+    try {
+      const vite = await createViteServer({
+        server: {
+          middlewareMode: true,
+          allowedHosts: true,
+          hmr: false,
+          watch: {
+            ignored: ["**/android/**", "**/dist/**"],
+          },
         },
-      },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
+        optimizeDeps: {
+          entries: ["index.html"],
+        },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } catch (err) {
+      console.error("[Nur Server] Vite initialization error:", err);
+      app.use(staticDistMiddleware);
+      app.get("*", (_req: Request, res: Response) => {
+        if (fs.existsSync(indexPath)) {
+          res.sendFile(indexPath);
+        } else {
+          res.status(500).send("Vite initialization failed and dist/index.html was not found.");
+        }
+      });
+    }
   } else {
-    const distPath = path.join(process.cwd(), "dist");
-    const indexPath = path.join(distPath, "index.html");
-    app.use(express.static(distPath, { maxAge: "1d", index: false }));
+    app.use(staticDistMiddleware);
     app.get("*", (_req: Request, res: Response) => {
       if (fs.existsSync(indexPath)) {
         res.sendFile(indexPath);
@@ -459,8 +520,8 @@ async function startServer() {
     });
   }
 
-  server.listen(PORT, "0.0.0.0", () => {
-    console.log(`Nur app server running on http://localhost:${PORT}`);
+  server.listen(PORT, HOST, () => {
+    console.log(`Nur app server running on http://${HOST}:${PORT}`);
   });
 }
 
